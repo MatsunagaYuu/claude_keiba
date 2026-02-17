@@ -109,7 +109,7 @@ function main() {
     const kaisai = first["開催"];
     const nichime = first["開催日"];
 
-    if (surface !== "芝" || !["1600", "1800", "2000"].includes(dist)) {
+    if (surface !== "芝") {
       skipped++;
       continue;
     }

@@ -92,11 +92,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
 
 <div class="stats" id="stats"></div>
 <div class="race-list" id="race-list">
-  <div class="loading" id="loading">読み込み中...</div>
+  <div class="loading" id="loading">年を選択してください</div>
 </div>
 
 <script>
-// data.json配列フォーマット:
 // Race: [id, year, venue, kaisai, day, class, surface, dist, weather, condition, horses[]]
 // Horse: [rank, gate, num, name, age, weight, jockey, time, margin, passing, last3f, pop, odds, totalIdx, last3fIdx, abilityIdx]
 const R = { ID:0, YEAR:1, VENUE:2, KAISAI:3, DAY:4, CLASS:5, SURFACE:6, DIST:7, WEATHER:8, COND:9, HORSES:10 };
@@ -106,6 +105,9 @@ let allRaces = [];
 let filtered = [];
 const PAGE_SIZE = 30;
 let showCount = PAGE_SIZE;
+const yearCache = {};
+let metaData = [];
+let currentYear = '';
 
 function idxClass(v) {
   const n = parseInt(v);
@@ -115,23 +117,71 @@ function idxClass(v) {
   return 'idx-low';
 }
 
-function buildFilters() {
+function buildSubFilters() {
+  // 年データが読み込まれた後にサブフィルタを更新
+  const venueEl = document.getElementById('venue-filter');
+  const distEl = document.getElementById('dist-filter');
+  const classEl = document.getElementById('class-filter');
+
+  // 現在の選択値を保持
+  const curVenue = venueEl.value;
+  const curDist = distEl.value;
+  const curClass = classEl.value;
+
+  venueEl.innerHTML = '<option value="">競馬場</option>';
+  distEl.innerHTML = '<option value="">距離</option>';
+  classEl.innerHTML = '<option value="">クラス</option>';
+
   const venues = [...new Set(allRaces.map(r => r[R.VENUE]))].sort();
   const dists = [...new Set(allRaces.map(r => r[R.DIST]))].sort((a,b) => a - b);
   const classes = [...new Set(allRaces.map(r => r[R.CLASS]))].sort();
-  const years = [...new Set(allRaces.map(r => r[R.YEAR]))].sort().reverse();
 
-  const venueEl = document.getElementById('venue-filter');
   venues.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; venueEl.appendChild(o); });
-
-  const distEl = document.getElementById('dist-filter');
   dists.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v + 'm'; distEl.appendChild(o); });
-
-  const classEl = document.getElementById('class-filter');
   classes.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; classEl.appendChild(o); });
 
-  const yearEl = document.getElementById('year-filter');
-  years.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v + '年'; yearEl.appendChild(o); });
+  venueEl.value = curVenue;
+  distEl.value = curDist;
+  classEl.value = curClass;
+}
+
+async function loadYear(year) {
+  if (yearCache[year]) return yearCache[year];
+  const res = await fetch(`data_${year}.json`);
+  const data = await res.json();
+  yearCache[year] = data;
+  return data;
+}
+
+async function onYearChange() {
+  const year = document.getElementById('year-filter').value;
+  const list = document.getElementById('race-list');
+  const statsEl = document.getElementById('stats');
+
+  if (!year) {
+    allRaces = [];
+    filtered = [];
+    statsEl.textContent = '';
+    list.innerHTML = '<div class="loading">年を選択してください</div>';
+    return;
+  }
+
+  if (year === currentYear) {
+    applyFilters();
+    return;
+  }
+
+  currentYear = year;
+  list.innerHTML = '<div class="loading">読み込み中...</div>';
+  statsEl.textContent = '';
+
+  try {
+    allRaces = await loadYear(year);
+    buildSubFilters();
+    applyFilters();
+  } catch (e) {
+    list.innerHTML = '<div class="loading">読み込みエラー: ' + e.message + '</div>';
+  }
 }
 
 function applyFilters() {
@@ -140,13 +190,11 @@ function applyFilters() {
   const venue = document.getElementById('venue-filter').value;
   const dist = document.getElementById('dist-filter').value;
   const cls = document.getElementById('class-filter').value;
-  const year = document.getElementById('year-filter').value;
 
   filtered = allRaces.filter(race => {
     if (venue && race[R.VENUE] !== venue) return false;
     if (dist && race[R.DIST] !== dist) return false;
     if (cls && race[R.CLASS] !== cls) return false;
-    if (year && race[R.YEAR] !== year) return false;
 
     if (horseName || idxMin) {
       const match = race[R.HORSES].some(h => {
@@ -182,7 +230,7 @@ function render(horseName, idxMin) {
     html += `<div class="race-header" onclick="toggle('${id}')">`;
     html += `<div><div class="race-title">${race[R.VENUE]} ${race[R.DIST]}m ${race[R.CLASS]}</div>`;
     html += `<div class="race-meta">${race[R.YEAR]}年 ${race[R.KAISAI]} ${race[R.DAY]} ${race[R.WEATHER]} ${race[R.COND]}</div></div>`;
-    html += `<span class="race-arrow">▶</span></div>`;
+    html += `<span class="race-arrow">&#9654;</span></div>`;
 
     html += `<div class="race-body"><div class="table-wrap"><table class="horse-table">`;
     html += `<tr><th>着</th><th>枠</th><th>番</th><th>馬名</th><th>騎手</th><th>タイム</th><th>上り</th><th>通過</th><th>総合</th><th>上り指</th><th>能力</th></tr>`;
@@ -239,15 +287,20 @@ document.getElementById('idx-min').addEventListener('input', onFilterChange);
 document.getElementById('venue-filter').addEventListener('change', applyFilters);
 document.getElementById('dist-filter').addEventListener('change', applyFilters);
 document.getElementById('class-filter').addEventListener('change', applyFilters);
-document.getElementById('year-filter').addEventListener('change', applyFilters);
+document.getElementById('year-filter').addEventListener('change', onYearChange);
 
-fetch('data.json')
+// meta.jsonから年リストを読み込み
+fetch('meta.json')
   .then(r => r.json())
-  .then(data => {
-    allRaces = data;
-    buildFilters();
-    document.getElementById('loading').remove();
-    applyFilters();
+  .then(meta => {
+    metaData = meta;
+    const yearEl = document.getElementById('year-filter');
+    for (const m of meta) {
+      const o = document.createElement('option');
+      o.value = m.year;
+      o.textContent = m.year + '年 (' + m.count + ')';
+      yearEl.appendChild(o);
+    }
   })
   .catch(e => {
     document.getElementById('loading').textContent = '読み込みエラー: ' + e.message;
