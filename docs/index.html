@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>競馬指数ビューア</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f5f5f5; color: #333; font-size: 14px; }
+
+.header { background: #1a5c2a; color: #fff; padding: 12px 16px; position: sticky; top: 0; z-index: 100; }
+.header h1 { font-size: 16px; margin-bottom: 8px; }
+
+.filters { padding: 8px 16px; background: #fff; border-bottom: 1px solid #ddd; }
+.filter-row { display: flex; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
+.filter-row:last-child { margin-bottom: 0; }
+.filter-row input, .filter-row select {
+  padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;
+  background: #fff;
+}
+.filter-row input { flex: 1; min-width: 0; }
+.filter-row select { flex: 0 0 auto; }
+#horse-search { flex: 1; }
+#idx-min { width: 70px; flex: 0 0 70px; }
+
+.stats { padding: 6px 16px; background: #e8f5e9; font-size: 12px; color: #555; }
+
+.race-list { padding: 8px; }
+
+.race-card {
+  background: #fff; border-radius: 8px; margin-bottom: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;
+}
+.race-header {
+  padding: 10px 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;
+}
+.race-header:active { background: #f0f0f0; }
+.race-title { font-weight: 600; font-size: 13px; }
+.race-meta { font-size: 11px; color: #777; margin-top: 2px; }
+.race-arrow { font-size: 12px; color: #999; transition: transform 0.2s; }
+.race-card.open .race-arrow { transform: rotate(90deg); }
+
+.race-body { display: none; border-top: 1px solid #eee; }
+.race-card.open .race-body { display: block; }
+
+.horse-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.horse-table th {
+  background: #f8f8f8; padding: 4px 6px; text-align: center;
+  font-weight: 600; border-bottom: 1px solid #ddd; white-space: nowrap;
+  position: sticky; top: 0;
+}
+.horse-table td { padding: 4px 6px; border-bottom: 1px solid #f0f0f0; text-align: center; white-space: nowrap; }
+.horse-table tr:nth-child(even) { background: #fafafa; }
+.horse-table .name { text-align: left; font-weight: 500; }
+.horse-table .idx { font-weight: 700; }
+.idx-high { color: #c62828; }
+.idx-mid { color: #e65100; }
+.idx-low { color: #333; }
+.highlight { background: #fff9c4 !important; }
+
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+.loading { text-align: center; padding: 40px; color: #999; }
+.no-results { text-align: center; padding: 40px; color: #999; }
+
+.more-btn {
+  display: block; width: 100%; padding: 12px; text-align: center;
+  background: #fff; border: 1px solid #ddd; border-radius: 8px;
+  font-size: 14px; color: #1a5c2a; cursor: pointer; margin-bottom: 8px;
+}
+.more-btn:active { background: #f0f0f0; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>競馬指数ビューア</h1>
+</div>
+
+<div class="filters">
+  <div class="filter-row">
+    <input type="text" id="horse-search" placeholder="馬名で検索">
+    <input type="number" id="idx-min" placeholder="指数≥">
+  </div>
+  <div class="filter-row">
+    <select id="venue-filter"><option value="">競馬場</option></select>
+    <select id="dist-filter"><option value="">距離</option></select>
+    <select id="class-filter"><option value="">クラス</option></select>
+    <select id="year-filter"><option value="">年</option></select>
+  </div>
+</div>
+
+<div class="stats" id="stats"></div>
+<div class="race-list" id="race-list">
+  <div class="loading" id="loading">読み込み中...</div>
+</div>
+
+<script>
+// data.json配列フォーマット:
+// Race: [id, year, venue, kaisai, day, class, surface, dist, weather, condition, horses[]]
+// Horse: [rank, gate, num, name, age, weight, jockey, time, margin, passing, last3f, pop, odds, totalIdx, last3fIdx, abilityIdx]
+const R = { ID:0, YEAR:1, VENUE:2, KAISAI:3, DAY:4, CLASS:5, SURFACE:6, DIST:7, WEATHER:8, COND:9, HORSES:10 };
+const H = { RANK:0, GATE:1, NUM:2, NAME:3, AGE:4, WEIGHT:5, JOCKEY:6, TIME:7, MARGIN:8, PASSING:9, LAST3F:10, POP:11, ODDS:12, TOTAL:13, LAST3F_IDX:14, ABILITY:15 };
+
+let allRaces = [];
+let filtered = [];
+const PAGE_SIZE = 30;
+let showCount = PAGE_SIZE;
+
+function idxClass(v) {
+  const n = parseInt(v);
+  if (isNaN(n)) return 'idx-low';
+  if (n >= 320) return 'idx-high';
+  if (n >= 300) return 'idx-mid';
+  return 'idx-low';
+}
+
+function buildFilters() {
+  const venues = [...new Set(allRaces.map(r => r[R.VENUE]))].sort();
+  const dists = [...new Set(allRaces.map(r => r[R.DIST]))].sort((a,b) => a - b);
+  const classes = [...new Set(allRaces.map(r => r[R.CLASS]))].sort();
+  const years = [...new Set(allRaces.map(r => r[R.YEAR]))].sort().reverse();
+
+  const venueEl = document.getElementById('venue-filter');
+  venues.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; venueEl.appendChild(o); });
+
+  const distEl = document.getElementById('dist-filter');
+  dists.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v + 'm'; distEl.appendChild(o); });
+
+  const classEl = document.getElementById('class-filter');
+  classes.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; classEl.appendChild(o); });
+
+  const yearEl = document.getElementById('year-filter');
+  years.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v + '年'; yearEl.appendChild(o); });
+}
+
+function applyFilters() {
+  const horseName = document.getElementById('horse-search').value.trim();
+  const idxMin = parseInt(document.getElementById('idx-min').value) || 0;
+  const venue = document.getElementById('venue-filter').value;
+  const dist = document.getElementById('dist-filter').value;
+  const cls = document.getElementById('class-filter').value;
+  const year = document.getElementById('year-filter').value;
+
+  filtered = allRaces.filter(race => {
+    if (venue && race[R.VENUE] !== venue) return false;
+    if (dist && race[R.DIST] !== dist) return false;
+    if (cls && race[R.CLASS] !== cls) return false;
+    if (year && race[R.YEAR] !== year) return false;
+
+    if (horseName || idxMin) {
+      const match = race[R.HORSES].some(h => {
+        const nameMatch = !horseName || h[H.NAME].includes(horseName);
+        const idxMatch = !idxMin || (parseInt(h[H.ABILITY]) >= idxMin);
+        return nameMatch && idxMatch;
+      });
+      if (!match) return false;
+    }
+    return true;
+  });
+
+  showCount = PAGE_SIZE;
+  render(horseName, idxMin);
+}
+
+function render(horseName, idxMin) {
+  const list = document.getElementById('race-list');
+  const statsEl = document.getElementById('stats');
+  statsEl.textContent = `${filtered.length}レース該当`;
+
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="no-results">該当なし</div>';
+    return;
+  }
+
+  const visible = filtered.slice(0, showCount);
+  let html = '';
+
+  for (const race of visible) {
+    const id = race[R.ID];
+    html += `<div class="race-card" id="race-${id}">`;
+    html += `<div class="race-header" onclick="toggle('${id}')">`;
+    html += `<div><div class="race-title">${race[R.VENUE]} ${race[R.DIST]}m ${race[R.CLASS]}</div>`;
+    html += `<div class="race-meta">${race[R.YEAR]}年 ${race[R.KAISAI]} ${race[R.DAY]} ${race[R.WEATHER]} ${race[R.COND]}</div></div>`;
+    html += `<span class="race-arrow">▶</span></div>`;
+
+    html += `<div class="race-body"><div class="table-wrap"><table class="horse-table">`;
+    html += `<tr><th>着</th><th>枠</th><th>番</th><th>馬名</th><th>騎手</th><th>タイム</th><th>上り</th><th>通過</th><th>総合</th><th>上り指</th><th>能力</th></tr>`;
+
+    for (const h of race[R.HORSES]) {
+      const isHighlight = (horseName && h[H.NAME].includes(horseName)) ||
+                          (idxMin && parseInt(h[H.ABILITY]) >= idxMin);
+      const hlClass = isHighlight ? ' highlight' : '';
+      html += `<tr class="${hlClass}">`;
+      html += `<td>${h[H.RANK]}</td>`;
+      html += `<td>${h[H.GATE]}</td>`;
+      html += `<td>${h[H.NUM]}</td>`;
+      html += `<td class="name">${h[H.NAME]}</td>`;
+      html += `<td>${h[H.JOCKEY]}</td>`;
+      html += `<td>${h[H.TIME]}</td>`;
+      html += `<td>${h[H.LAST3F]}</td>`;
+      html += `<td>${h[H.PASSING]}</td>`;
+      html += `<td class="idx ${idxClass(h[H.TOTAL])}">${h[H.TOTAL]}</td>`;
+      html += `<td class="idx">${h[H.LAST3F_IDX]}</td>`;
+      html += `<td class="idx ${idxClass(h[H.ABILITY])}">${h[H.ABILITY]}</td>`;
+      html += `</tr>`;
+    }
+
+    html += `</table></div></div></div>`;
+  }
+
+  if (showCount < filtered.length) {
+    html += `<button class="more-btn" onclick="loadMore()">もっと表示 (残り${filtered.length - showCount}件)</button>`;
+  }
+
+  list.innerHTML = html;
+}
+
+function toggle(id) {
+  document.getElementById('race-' + id).classList.toggle('open');
+}
+
+function loadMore() {
+  showCount += PAGE_SIZE;
+  const horseName = document.getElementById('horse-search').value.trim();
+  const idxMin = parseInt(document.getElementById('idx-min').value) || 0;
+  render(horseName, idxMin);
+}
+
+// 初期化
+let debounceTimer;
+function onFilterChange() {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(applyFilters, 300);
+}
+
+document.getElementById('horse-search').addEventListener('input', onFilterChange);
+document.getElementById('idx-min').addEventListener('input', onFilterChange);
+document.getElementById('venue-filter').addEventListener('change', applyFilters);
+document.getElementById('dist-filter').addEventListener('change', applyFilters);
+document.getElementById('class-filter').addEventListener('change', applyFilters);
+document.getElementById('year-filter').addEventListener('change', applyFilters);
+
+fetch('data.json')
+  .then(r => r.json())
+  .then(data => {
+    allRaces = data;
+    buildFilters();
+    document.getElementById('loading').remove();
+    applyFilters();
+  })
+  .catch(e => {
+    document.getElementById('loading').textContent = '読み込みエラー: ' + e.message;
+  });
+</script>
+</body>
+</html>
