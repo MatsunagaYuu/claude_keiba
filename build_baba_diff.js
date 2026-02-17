@@ -75,9 +75,7 @@ function main() {
     const kaisai = first["開催"];
     const nichime = first["開催日"];
 
-    if (!["東京", "中山"].includes(venue)) continue;
     if (surface !== "芝") continue;
-    if (!["1600", "1800", "2000"].includes(dist)) continue;
 
     const category = classifyRace(className);
     if (!category) continue;
