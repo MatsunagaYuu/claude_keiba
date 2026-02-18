@@ -9,7 +9,7 @@
 body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f5f5f5; color: #333; font-size: 14px; }
 
 .header { background: #1a5c2a; color: #fff; padding: 12px 16px; position: sticky; top: 0; z-index: 100; }
-.header h1 { font-size: 16px; margin-bottom: 8px; }
+.header h1 { font-size: 16px; }
 
 .filters { padding: 8px 16px; background: #fff; border-bottom: 1px solid #ddd; }
 .filter-row { display: flex; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
@@ -69,6 +69,35 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
   font-size: 14px; color: #1a5c2a; cursor: pointer; margin-bottom: 8px;
 }
 .more-btn:active { background: #f0f0f0; }
+
+.horse-link { color: #1a5c2a; text-decoration: underline; cursor: pointer; }
+.horse-link:active { color: #0d3015; }
+
+/* 馬詳細パネル */
+.horse-detail { display: none; }
+.horse-detail.active { display: block; }
+.horse-detail-header {
+  padding: 10px 16px; background: #fff; border-bottom: 1px solid #ddd;
+  display: flex; align-items: center; gap: 12px;
+}
+.back-btn {
+  padding: 6px 12px; background: #1a5c2a; color: #fff; border: none;
+  border-radius: 4px; font-size: 13px; cursor: pointer; white-space: nowrap;
+}
+.back-btn:active { background: #0d3015; }
+.horse-detail-name { font-size: 16px; font-weight: 700; }
+.horse-detail-stats { font-size: 12px; color: #555; }
+.horse-detail-body { padding: 8px; }
+.detail-race-row {
+  background: #fff; border-radius: 6px; margin-bottom: 6px; padding: 8px 10px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08); font-size: 12px;
+}
+.detail-race-info { display: flex; justify-content: space-between; margin-bottom: 4px; }
+.detail-race-label { font-weight: 600; font-size: 13px; }
+.detail-race-date { color: #777; font-size: 11px; }
+.detail-race-nums { display: flex; gap: 12px; flex-wrap: wrap; }
+.detail-race-nums span { display: inline-block; }
+.detail-race-nums .label { color: #777; }
 </style>
 </head>
 <body>
@@ -77,27 +106,42 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
   <h1>競馬指数ビューア</h1>
 </div>
 
-<div class="filters">
-  <div class="filter-row">
-    <input type="text" id="horse-search" placeholder="馬名で検索">
-    <input type="number" id="idx-min" placeholder="指数≥">
+<!-- メイン画面 -->
+<div id="main-view">
+  <div class="filters">
+    <div class="filter-row">
+      <input type="text" id="horse-search" placeholder="馬名で検索">
+      <input type="number" id="idx-min" placeholder="指数≥">
+    </div>
+    <div class="filter-row">
+      <select id="venue-filter"><option value="">競馬場</option></select>
+      <select id="dist-filter"><option value="">距離</option></select>
+      <select id="class-filter"><option value="">クラス</option></select>
+      <select id="year-filter"><option value="">年</option></select>
+    </div>
   </div>
-  <div class="filter-row">
-    <select id="venue-filter"><option value="">競馬場</option></select>
-    <select id="dist-filter"><option value="">距離</option></select>
-    <select id="class-filter"><option value="">クラス</option></select>
-    <select id="year-filter"><option value="">年</option></select>
+
+  <div class="stats" id="stats"></div>
+  <div class="race-list" id="race-list">
+    <div class="loading" id="loading">年を選択してください</div>
   </div>
 </div>
 
-<div class="stats" id="stats"></div>
-<div class="race-list" id="race-list">
-  <div class="loading" id="loading">年を選択してください</div>
+<!-- 馬詳細画面 -->
+<div id="horse-detail" class="horse-detail">
+  <div class="horse-detail-header">
+    <button class="back-btn" onclick="closeHorseDetail()">&#9664; 戻る</button>
+    <div>
+      <div class="horse-detail-name" id="detail-name"></div>
+      <div class="horse-detail-stats" id="detail-stats"></div>
+    </div>
+  </div>
+  <div class="horse-detail-body" id="detail-body">
+    <div class="loading">読み込み中...</div>
+  </div>
 </div>
 
 <script>
-// Race: [id, year, venue, kaisai, day, class, surface, dist, weather, condition, horses[]]
-// Horse: [rank, gate, num, name, age, weight, jockey, time, margin, passing, last3f, pop, odds, totalIdx, last3fIdx, abilityIdx]
 const R = { ID:0, YEAR:1, VENUE:2, KAISAI:3, DAY:4, CLASS:5, SURFACE:6, DIST:7, WEATHER:8, COND:9, HORSES:10 };
 const H = { RANK:0, GATE:1, NUM:2, NAME:3, AGE:4, WEIGHT:5, JOCKEY:6, TIME:7, MARGIN:8, PASSING:9, LAST3F:10, POP:11, ODDS:12, TOTAL:13, LAST3F_IDX:14, ABILITY:15 };
 
@@ -118,12 +162,10 @@ function idxClass(v) {
 }
 
 function buildSubFilters() {
-  // 年データが読み込まれた後にサブフィルタを更新
   const venueEl = document.getElementById('venue-filter');
   const distEl = document.getElementById('dist-filter');
   const classEl = document.getElementById('class-filter');
 
-  // 現在の選択値を保持
   const curVenue = venueEl.value;
   const curDist = distEl.value;
   const curClass = classEl.value;
@@ -151,6 +193,11 @@ async function loadYear(year) {
   const data = await res.json();
   yearCache[year] = data;
   return data;
+}
+
+async function loadAllYears() {
+  const promises = metaData.map(m => loadYear(m.year));
+  await Promise.all(promises);
 }
 
 async function onYearChange() {
@@ -233,17 +280,19 @@ function render(horseName, idxMin) {
     html += `<span class="race-arrow">&#9654;</span></div>`;
 
     html += `<div class="race-body"><div class="table-wrap"><table class="horse-table">`;
-    html += `<tr><th>着</th><th>枠</th><th>番</th><th>馬名</th><th>騎手</th><th>タイム</th><th>上り</th><th>通過</th><th>総合</th><th>上り指</th><th>能力</th></tr>`;
+    html += `<tr><th>着</th><th>枠</th><th>番</th><th>馬名</th><th>斤量</th><th>騎手</th><th>タイム</th><th>上り</th><th>通過</th><th>総合</th><th>上り指</th><th>能力</th></tr>`;
 
     for (const h of race[R.HORSES]) {
       const isHighlight = (horseName && h[H.NAME].includes(horseName)) ||
                           (idxMin && parseInt(h[H.ABILITY]) >= idxMin);
       const hlClass = isHighlight ? ' highlight' : '';
+      const escapedName = h[H.NAME].replace(/'/g, "\\'");
       html += `<tr class="${hlClass}">`;
       html += `<td>${h[H.RANK]}</td>`;
       html += `<td>${h[H.GATE]}</td>`;
       html += `<td>${h[H.NUM]}</td>`;
-      html += `<td class="name">${h[H.NAME]}</td>`;
+      html += `<td class="name"><span class="horse-link" onclick="showHorseDetail('${escapedName}')">${h[H.NAME]}</span></td>`;
+      html += `<td>${h[H.WEIGHT]}</td>`;
       html += `<td>${h[H.JOCKEY]}</td>`;
       html += `<td>${h[H.TIME]}</td>`;
       html += `<td>${h[H.LAST3F]}</td>`;
@@ -275,6 +324,100 @@ function loadMore() {
   render(horseName, idxMin);
 }
 
+// === 馬詳細画面 ===
+
+async function showHorseDetail(name) {
+  const mainView = document.getElementById('main-view');
+  const detailView = document.getElementById('horse-detail');
+  const detailBody = document.getElementById('detail-body');
+  const detailName = document.getElementById('detail-name');
+  const detailStats = document.getElementById('detail-stats');
+
+  mainView.style.display = 'none';
+  detailView.classList.add('active');
+  detailName.textContent = name;
+  detailStats.textContent = '読み込み中...';
+  detailBody.innerHTML = '<div class="loading">全年データを読み込み中...</div>';
+
+  // URL更新（ブラウザ履歴対応）
+  history.pushState({ horse: name }, '', '?horse=' + encodeURIComponent(name));
+
+  // 全年データを読み込み
+  await loadAllYears();
+
+  // 全年から該当馬のレースを抽出
+  const results = [];
+  for (const m of metaData) {
+    const races = yearCache[m.year] || [];
+    for (const race of races) {
+      for (const h of race[R.HORSES]) {
+        if (h[H.NAME] === name) {
+          results.push({ race, horse: h });
+          break;
+        }
+      }
+    }
+  }
+
+  // レースID降順（新しい順）
+  results.sort((a, b) => b.race[R.ID].localeCompare(a.race[R.ID]));
+
+  if (results.length === 0) {
+    detailStats.textContent = '該当レースなし';
+    detailBody.innerHTML = '<div class="no-results">データが見つかりません</div>';
+    return;
+  }
+
+  // 統計
+  const abilities = results.map(r => parseInt(r.horse[H.ABILITY])).filter(v => !isNaN(v));
+  const maxAbility = abilities.length ? Math.max(...abilities) : '-';
+  const avgAbility = abilities.length ? (abilities.reduce((a,b) => a + b, 0) / abilities.length).toFixed(1) : '-';
+  const wins = results.filter(r => r.horse[H.RANK] === '1' || r.horse[H.RANK] === 1).length;
+  detailStats.textContent = `${results.length}戦${wins}勝 / 能力指数 最高${maxAbility} 平均${avgAbility}`;
+
+  // レース一覧
+  let html = '<div class="table-wrap"><table class="horse-table">';
+  html += '<tr><th>日付</th><th>場</th><th>距離</th><th>クラス</th><th>馬場</th><th>斤量</th><th>着</th><th>タイム</th><th>上り</th><th>通過</th><th>総合</th><th>上指</th><th>能力</th></tr>';
+
+  for (const { race, horse } of results) {
+    html += '<tr>';
+    html += `<td>${race[R.YEAR]}/${race[R.KAISAI]}/${race[R.DAY]}</td>`;
+    html += `<td>${race[R.VENUE]}</td>`;
+    html += `<td>${race[R.DIST]}m</td>`;
+    html += `<td style="text-align:left;font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis">${race[R.CLASS]}</td>`;
+    html += `<td>${race[R.COND]}</td>`;
+    html += `<td>${horse[H.WEIGHT]}</td>`;
+    html += `<td>${horse[H.RANK]}</td>`;
+    html += `<td>${horse[H.TIME]}</td>`;
+    html += `<td>${horse[H.LAST3F]}</td>`;
+    html += `<td>${horse[H.PASSING]}</td>`;
+    html += `<td class="idx ${idxClass(horse[H.TOTAL])}">${horse[H.TOTAL]}</td>`;
+    html += `<td class="idx">${horse[H.LAST3F_IDX]}</td>`;
+    html += `<td class="idx ${idxClass(horse[H.ABILITY])}">${horse[H.ABILITY]}</td>`;
+    html += '</tr>';
+  }
+
+  html += '</table></div>';
+  detailBody.innerHTML = html;
+  window.scrollTo(0, 0);
+}
+
+function closeHorseDetail() {
+  document.getElementById('horse-detail').classList.remove('active');
+  document.getElementById('main-view').style.display = '';
+  history.pushState({}, '', location.pathname);
+}
+
+// ブラウザ戻るボタン対応
+window.addEventListener('popstate', (e) => {
+  if (e.state && e.state.horse) {
+    showHorseDetail(e.state.horse);
+  } else {
+    document.getElementById('horse-detail').classList.remove('active');
+    document.getElementById('main-view').style.display = '';
+  }
+});
+
 // 初期化
 let debounceTimer;
 function onFilterChange() {
@@ -289,7 +432,7 @@ document.getElementById('dist-filter').addEventListener('change', applyFilters);
 document.getElementById('class-filter').addEventListener('change', applyFilters);
 document.getElementById('year-filter').addEventListener('change', onYearChange);
 
-// meta.jsonから年リストを読み込み
+// meta.jsonから年リストを読み込み → URLパラメータ処理
 fetch('meta.json')
   .then(r => r.json())
   .then(meta => {
@@ -300,6 +443,13 @@ fetch('meta.json')
       o.value = m.year;
       o.textContent = m.year + '年 (' + m.count + ')';
       yearEl.appendChild(o);
+    }
+
+    // URLパラメータ ?horse=XXX で馬詳細を直接開く
+    const params = new URLSearchParams(location.search);
+    const horseName = params.get('horse');
+    if (horseName) {
+      showHorseDetail(horseName);
     }
   })
   .catch(e => {
