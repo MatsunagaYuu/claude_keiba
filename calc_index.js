@@ -21,6 +21,20 @@ const AGARI_WEIGHT = 0.5;
 // 脚溜め補正: 先頭から1秒後方で待機 → 上がりが約DRAFT_FACTOR秒速くなると仮定
 // 後方待機の展開利を割り引くための係数
 const DRAFT_FACTOR = 0.6;
+// 世代補正: 世代限定レースは古馬混合より能力が低いため基準指数を下げる
+// データ分析結果: OP 3歳-7/2歳-12, 1勝 3歳-2/2歳-3
+// 世代限定レースは古馬混合より走破タイムが遅い（能力差）ため
+// 基準指数を上げて指数を相対的に下げる
+const GEN_CORRECTION = {
+  OP:     { "3歳": 7, "2歳": 12 },
+  "1勝クラス": { "3歳": 2, "2歳": 3 },
+};
+
+function detectGeneration(className) {
+  if (className.includes("2歳")) return "2歳";
+  if (className.includes("3歳") && !className.includes("以上")) return "3歳";
+  return "古馬";
+}
 
 function distFactor(dist) {
   return CALIBRATION_FACTOR * (CALIBRATION_DIST / parseInt(dist));
@@ -123,6 +137,11 @@ function main() {
     const bt = baseMap[btKey];
     if (!bt) { skipped++; continue; }
 
+    // 世代補正: 世代限定レースの基準指数を下げる
+    const gen = detectGeneration(className);
+    const genCorr = (GEN_CORRECTION[category] && GEN_CORRECTION[category][gen]) || 0;
+    const baseIndex = bt.基準指数 + genCorr;
+
     // 馬場差
     const rid = file.replace("result_", "").replace(".csv", "");
     const year = rid.substring(0, 4);
@@ -170,7 +189,7 @@ function main() {
       // 馬場差がプラス（遅い馬場）→ 基準タイムを遅くする → 同じタイムでも高指数
       const adjustedBase = bt.基準走破秒 + babaDiff;
       const timeDiff = adjustedBase - totalSec;
-      const totalIdx = Math.round(bt.基準指数 + timeDiff * factor);
+      const totalIdx = Math.round(baseIndex + timeDiff * factor);
 
       // 上がり指数: ペースを考慮した末脚評価 + 脚溜め補正
       const adjustedEarlyBase = bt.基準前半秒 + babaDiff * 0.6; // 馬場差の6割を前半に配分
