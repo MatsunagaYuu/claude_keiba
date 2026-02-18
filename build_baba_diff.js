@@ -24,9 +24,9 @@ function classifyRace(className) {
   if (className.includes("障害")) return null;
   if (className.includes("新馬")) return "未勝利";
   if (className.includes("未勝利")) return "未勝利";
-  if (className.includes("1勝")) return "1勝クラス";
-  if (className.includes("2勝")) return "2勝クラス";
-  if (className.includes("3勝")) return "3勝クラス";
+  if (className.includes("1勝") || className.includes("500万下")) return "1勝クラス";
+  if (className.includes("2勝") || className.includes("1000万下")) return "2勝クラス";
+  if (className.includes("3勝") || className.includes("1600万下")) return "3勝クラス";
   if (className.includes("オープン") || className.includes("OP")) return "OP";
   if (/G[1-3I]|GI|GII|GIII|リステッド|L$/.test(className)) return "OP";
   return null;

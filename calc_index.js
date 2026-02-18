@@ -9,12 +9,12 @@ const OUTPUT_DIR = "./race_index";
 // キャリブレーション:
 // イクイノックス 2023天皇賞秋 東京芝2000m 1:55.2 → 指数336
 // OP良基準: 1:59.32(119.32秒), 基準指数315
-// 天皇賞秋2023の馬場差: -0.85秒(全場全距離算出, 速い馬場)
-// 補正後基準: 119.32 + (-0.85) = 118.47秒
-// 差: 118.47 - 115.2 = 3.27秒 → 21ポイント
-// factor_at_2000 = 21 / 3.27 = 6.422
+// 天皇賞秋2023の馬場差: -0.86秒(全場全距離算出, 速い馬場)
+// 補正後基準: 119.32 + (-0.86) = 118.46秒
+// 差: 118.46 - 115.2 = 3.26秒 → 21ポイント
+// factor_at_2000 = 21 / 3.26 = 6.442
 const ANCHOR_INDEX = 315;
-const CALIBRATION_FACTOR = 6.422;
+const CALIBRATION_FACTOR = 6.442;
 const CALIBRATION_DIST = 2000;
 // 能力指数 = 総合指数 + 上がり指数 × AGARI_WEIGHT
 const AGARI_WEIGHT = 0.5;
@@ -52,11 +52,12 @@ function classifyRace(className) {
   if (className.includes("障害")) return null;
   if (className.includes("新馬")) return "未勝利";
   if (className.includes("未勝利")) return "未勝利";
-  if (className.includes("1勝")) return "1勝クラス";
-  if (className.includes("2勝")) return "2勝クラス";
-  if (className.includes("3勝")) return "3勝クラス";
+  if (className.includes("1勝") || className.includes("500万下")) return "1勝クラス";
+  if (className.includes("2勝") || className.includes("1000万下")) return "2勝クラス";
+  if (className.includes("3勝") || className.includes("1600万下")) return "3勝クラス";
   if (className.includes("オープン") || className.includes("OP")) return "OP";
   if (/G[1-3I]|GI|GII|GIII|リステッド|L$/.test(className)) return "OP";
+  // 特別レース名のみの場合（クラス情報なし）はスキップ
   return null;
 }
 
