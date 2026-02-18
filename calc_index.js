@@ -18,6 +18,10 @@ const CALIBRATION_FACTOR = 6.442;
 const CALIBRATION_DIST = 2000;
 // 能力指数 = 総合指数 + 上がり指数 × AGARI_WEIGHT
 const AGARI_WEIGHT = 0.5;
+// 斤量補正: 基準斤量との差をタイムに換算
+// 1kgあたり0.2秒(2000m換算)、距離比例でスケーリング
+const BASE_WEIGHT = 57;
+const WEIGHT_FACTOR = 0.2;
 // 脚溜め補正: 先頭から1秒後方で待機 → 上がりが約DRAFT_FACTOR秒速くなると仮定
 // 後方待機の展開利を割り引くための係数
 const DRAFT_FACTOR = 0.6;
@@ -185,10 +189,15 @@ function main() {
 
       const earlySec = totalSec - last3f;
 
-      // 総合指数: 良基準 + 馬場差補正
+      // 斤量補正: 重い斤量で同じタイム = より高い能力
+      // 距離比例: 2000mで1kg=0.2秒、1000mで1kg=0.1秒
+      const weight = parseFloat(row["斤量"]) || BASE_WEIGHT;
+      const weightAdj = (weight - BASE_WEIGHT) * WEIGHT_FACTOR * (parseInt(dist) / 2000);
+
+      // 総合指数: 良基準 + 馬場差補正 + 斤量補正
       // 馬場差がプラス（遅い馬場）→ 基準タイムを遅くする → 同じタイムでも高指数
       const adjustedBase = bt.基準走破秒 + babaDiff;
-      const timeDiff = adjustedBase - totalSec;
+      const timeDiff = adjustedBase - totalSec + weightAdj;
       const totalIdx = Math.round(baseIndex + timeDiff * factor);
 
       // 上がり指数: ペースを考慮した末脚評価 + 脚溜め補正

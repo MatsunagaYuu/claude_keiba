@@ -132,31 +132,39 @@ function main() {
       a.年 - b.年 || a.競馬場.localeCompare(b.競馬場) || a.開催 - b.開催 || a.日次 - b.日次
   );
 
-  // 7段階分類の閾値を算出
-  const allDevs = babaDiffs.map((d) => d.馬場差).sort((a, b) => a - b);
-  const n = allDevs.length;
-  const pcts = [5, 15, 35, 65, 85, 95];
-  const labels = ["極速", "速", "稍速", "標準", "稍遅", "遅", "極遅"];
-  const thresholds = pcts.map((p) => allDevs[Math.floor(n * p / 100)]);
+  // 7段階分類（絶対閾値）
+  // 馬場差は良馬場基準からの偏差(2000m換算秒)。正=遅い、負=速い。
+  // 良馬場は馬場差≈0なので基本的に「極速」になる設計。
+  const BABA_LABELS = [
+    { label: "極速", max: 0.5 },
+    { label: "速",   max: 1.0 },
+    { label: "稍速", max: 1.5 },
+    { label: "標準", max: 2.0 },
+    { label: "稍遅", max: 3.0 },
+    { label: "遅",   max: 5.0 },
+    { label: "極遅", max: Infinity },
+  ];
 
   // 分類を付与
   for (const d of babaDiffs) {
-    const idx = thresholds.filter((t) => d.馬場差 >= t).length;
-    d.馬場速度 = labels[idx];
+    d.馬場速度 = BABA_LABELS.find((b) => d.馬場差 < b.max).label;
   }
+  const labels = BABA_LABELS.map((b) => b.label);
 
-  console.log(`\n=== 馬場差 7段階分類 ===`);
+  console.log(`\n=== 馬場差 7段階分類（絶対閾値） ===`);
   console.log("分類    馬場差閾値(2000m換算秒)    該当日数");
-  for (let i = 0; i < labels.length; i++) {
-    const lo = i === 0 ? -Infinity : thresholds[i - 1];
-    const hi = i < thresholds.length ? thresholds[i] : Infinity;
-    const count = babaDiffs.filter((d) => d.馬場速度 === labels[i]).length;
+  for (let i = 0; i < BABA_LABELS.length; i++) {
+    const lo = i === 0 ? -Infinity : BABA_LABELS[i - 1].max;
+    const hi = BABA_LABELS[i].max;
+    const count = babaDiffs.filter((d) => d.馬場速度 === BABA_LABELS[i].label).length;
     console.log(
-      `${labels[i].padEnd(6)}  ${lo === -Infinity ? "      " : lo.toFixed(2).padStart(6)} ~ ${hi === Infinity ? "      " : hi.toFixed(2).padStart(6)}    ${String(count).padStart(4)}`
+      `${BABA_LABELS[i].label.padEnd(6)}  ${lo === -Infinity ? "      " : lo.toFixed(2).padStart(6)} ~ ${hi === Infinity ? "      " : hi.toFixed(2).padStart(6)}    ${String(count).padStart(4)}`
     );
   }
 
   // 統計
+  const allDevs = babaDiffs.map((d) => d.馬場差).sort((a, b) => a - b);
+  const n = allDevs.length;
   console.log(`\n全${babaDiffs.length}日`);
   console.log(`馬場差 平均: ${(allDevs.reduce((a, b) => a + b, 0) / n).toFixed(2)}秒`);
   console.log(`馬場差 最速: ${allDevs[0].toFixed(2)}秒, 最遅: ${allDevs[n - 1].toFixed(2)}秒`);
