@@ -11,6 +11,14 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
 .header { background: #1a5c2a; color: #fff; padding: 12px 16px; position: sticky; top: 0; z-index: 100; }
 .header h1 { font-size: 16px; }
 
+.tab-bar { display: flex; background: #fff; border-bottom: 1px solid #ddd; }
+.tab-btn {
+  flex: 1; padding: 10px; text-align: center; font-size: 14px; font-weight: 600;
+  cursor: pointer; border: none; background: #fff; color: #777; border-bottom: 2px solid transparent;
+}
+.tab-btn.active { color: #1a5c2a; border-bottom-color: #1a5c2a; }
+.tab-btn:active { background: #f0f0f0; }
+
 .filters { padding: 8px 16px; background: #fff; border-bottom: 1px solid #ddd; }
 .filter-row { display: flex; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
 .filter-row:last-child { margin-bottom: 0; }
@@ -98,6 +106,23 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
 .detail-race-nums { display: flex; gap: 12px; flex-wrap: wrap; }
 .detail-race-nums span { display: inline-block; }
 .detail-race-nums .label { color: #777; }
+
+/* 出馬表フィルタ */
+.shutuba-filters { padding: 8px 16px; background: #fff; border-bottom: 1px solid #ddd; display: none; }
+.shutuba-filters .filter-row select {
+  padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; background: #fff;
+}
+
+/* ミニバーチャート */
+.mini-bars { display: inline-flex; gap: 2px; align-items: flex-end; height: 28px; vertical-align: middle; }
+.mini-bar {
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end; width: 20px;
+}
+.mini-bar-fill { width: 14px; border-radius: 2px 2px 0 0; min-height: 2px; }
+.mini-bar-val { font-size: 9px; color: #777; line-height: 1; margin-top: 1px; }
+.mini-bar-fill.idx-high { background: #c62828; }
+.mini-bar-fill.idx-mid { background: #e65100; }
+.mini-bar-fill.idx-low { background: #aaa; }
 </style>
 </head>
 <body>
@@ -106,9 +131,15 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
   <h1>競馬指数ビューア</h1>
 </div>
 
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('result')">結果</button>
+  <button class="tab-btn" onclick="switchTab('shutuba')">出馬表</button>
+</div>
+
 <!-- メイン画面 -->
 <div id="main-view">
-  <div class="filters">
+  <!-- 結果フィルタ -->
+  <div class="filters" id="result-filters">
     <div class="filter-row">
       <input type="text" id="horse-search" placeholder="馬名で検索">
       <input type="number" id="idx-min" placeholder="指数≥">
@@ -119,6 +150,14 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
       <select id="dist-filter"><option value="">距離</option></select>
       <select id="class-filter"><option value="">クラス</option></select>
       <select id="year-filter"><option value="">年</option></select>
+    </div>
+  </div>
+
+  <!-- 出馬表フィルタ -->
+  <div class="shutuba-filters" id="shutuba-filters">
+    <div class="filter-row">
+      <select id="shutuba-date-filter"><option value="">日付を選択</option></select>
+      <select id="shutuba-venue-filter"><option value="">競馬場</option></select>
     </div>
   </div>
 
@@ -146,6 +185,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
 const R = { ID:0, YEAR:1, VENUE:2, KAISAI:3, DAY:4, CLASS:5, SURFACE:6, DIST:7, WEATHER:8, COND:9, HORSES:10, DATE:11, RACENUM:12, BABA_SPEED:13 };
 const H = { RANK:0, GATE:1, NUM:2, NAME:3, AGE:4, WEIGHT:5, JOCKEY:6, TIME:7, MARGIN:8, PASSING:9, LAST3F:10, POP:11, ODDS:12, TOTAL:13, LAST3F_IDX:14, ABILITY:15 };
 
+// 出馬表用インデックス
+const SR = { ID:0, VENUE:1, RACENUM:2, CLASS:3, SURFACE:4, DIST:5, HORSES:6 };
+const SH = { GATE:0, NUM:1, NAME:2, AGE:3, WEIGHT:4, JOCKEY:5, PAST:6 };
+const SP = { DATE:0, VENUE:1, DIST:2, SURFACE:3, COND:4, RANK:5, TOTAL:6, ABILITY:7 };
+
 let allRaces = [];
 let filtered = [];
 const PAGE_SIZE = 30;
@@ -153,6 +197,13 @@ let showCount = PAGE_SIZE;
 const yearCache = {};
 let metaData = [];
 let currentYear = '';
+let currentTab = 'result';
+
+// 出馬表用
+let shutubaMeta = [];
+let shutubaData = [];
+let shutubaFiltered = [];
+const shutubaCache = {};
 
 function idxClass(v) {
   const n = parseInt(v);
@@ -162,6 +213,40 @@ function idxClass(v) {
   return 'idx-low';
 }
 
+// === タブ切り替え ===
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', (i === 0 && tab === 'result') || (i === 1 && tab === 'shutuba'));
+  });
+  const resultFilters = document.getElementById('result-filters');
+  const shutubaFilters = document.getElementById('shutuba-filters');
+  const list = document.getElementById('race-list');
+  const statsEl = document.getElementById('stats');
+
+  if (tab === 'result') {
+    resultFilters.style.display = '';
+    shutubaFilters.style.display = 'none';
+    if (currentYear) {
+      applyFilters();
+    } else {
+      statsEl.textContent = '';
+      list.innerHTML = '<div class="loading">年を選択してください</div>';
+    }
+  } else {
+    resultFilters.style.display = 'none';
+    shutubaFilters.style.display = '';
+    if (shutubaMeta.length === 0) {
+      statsEl.textContent = '';
+      list.innerHTML = '<div class="loading">出馬表データを読み込み中...</div>';
+      loadShutubaMeta();
+    } else {
+      renderShutuba();
+    }
+  }
+}
+
+// === 結果タブ ===
 function buildSubFilters() {
   const venueEl = document.getElementById('venue-filter');
   const distEl = document.getElementById('dist-filter');
@@ -342,7 +427,145 @@ function loadMore() {
   showCount += PAGE_SIZE;
   const horseName = document.getElementById('horse-search').value.trim();
   const idxMin = parseInt(document.getElementById('idx-min').value) || 0;
-  render(horseName, idxMin);
+  if (currentTab === 'shutuba') {
+    renderShutuba();
+  } else {
+    render(horseName, idxMin);
+  }
+}
+
+// === 出馬表タブ ===
+
+async function loadShutubaMeta() {
+  try {
+    const res = await fetch('shutuba_meta.json');
+    shutubaMeta = await res.json();
+    const dateEl = document.getElementById('shutuba-date-filter');
+    dateEl.innerHTML = '<option value="">日付を選択</option>';
+    for (const m of shutubaMeta) {
+      const o = document.createElement('option');
+      o.value = m.date;
+      const d = m.date;
+      o.textContent = `${d.substring(0,4)}/${d.substring(4,6)}/${d.substring(6,8)} (${m.count}R)`;
+      dateEl.appendChild(o);
+    }
+    // 最新日付を自動選択
+    if (shutubaMeta.length > 0) {
+      dateEl.value = shutubaMeta[0].date;
+      await onShutubaDateChange();
+    } else {
+      document.getElementById('race-list').innerHTML = '<div class="no-results">出馬表データなし</div>';
+      document.getElementById('stats').textContent = '';
+    }
+  } catch (e) {
+    document.getElementById('race-list').innerHTML = '<div class="loading">出馬表データなし</div>';
+    document.getElementById('stats').textContent = '';
+  }
+}
+
+async function onShutubaDateChange() {
+  const date = document.getElementById('shutuba-date-filter').value;
+  if (!date) {
+    shutubaData = [];
+    shutubaFiltered = [];
+    document.getElementById('stats').textContent = '';
+    document.getElementById('race-list').innerHTML = '<div class="loading">日付を選択してください</div>';
+    return;
+  }
+
+  document.getElementById('race-list').innerHTML = '<div class="loading">読み込み中...</div>';
+
+  try {
+    if (!shutubaCache[date]) {
+      const res = await fetch(`shutuba_${date}.json`);
+      shutubaCache[date] = await res.json();
+    }
+    shutubaData = shutubaCache[date];
+
+    // 競馬場フィルタ構築
+    const venueEl = document.getElementById('shutuba-venue-filter');
+    const curVenue = venueEl.value;
+    venueEl.innerHTML = '<option value="">競馬場</option>';
+    const venues = [...new Set(shutubaData.map(r => r[SR.VENUE]))].sort();
+    venues.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; venueEl.appendChild(o); });
+    venueEl.value = venues.includes(curVenue) ? curVenue : '';
+
+    showCount = PAGE_SIZE;
+    renderShutuba();
+  } catch (e) {
+    document.getElementById('race-list').innerHTML = '<div class="loading">読み込みエラー: ' + e.message + '</div>';
+  }
+}
+
+function renderShutuba() {
+  const venue = document.getElementById('shutuba-venue-filter').value;
+  shutubaFiltered = shutubaData.filter(r => !venue || r[SR.VENUE] === venue);
+
+  const list = document.getElementById('race-list');
+  const statsEl = document.getElementById('stats');
+  statsEl.textContent = `${shutubaFiltered.length}レース`;
+
+  if (shutubaFiltered.length === 0) {
+    list.innerHTML = '<div class="no-results">該当なし</div>';
+    return;
+  }
+
+  const visible = shutubaFiltered.slice(0, showCount);
+  let html = '';
+
+  for (const race of visible) {
+    const id = race[SR.ID];
+    html += `<div class="race-card" id="race-${id}">`;
+    html += `<div class="race-header" onclick="toggle('${id}')">`;
+    html += `<div><div class="race-title">${race[SR.VENUE]} ${race[SR.DIST]}m ${race[SR.CLASS]}</div>`;
+    html += `<div class="race-meta">${race[SR.RACENUM]}R ${race[SR.SURFACE]}</div></div>`;
+    html += `<span class="race-arrow">&#9654;</span></div>`;
+
+    html += `<div class="race-body"><div class="table-wrap"><table class="horse-table">`;
+    html += `<tr><th>枠</th><th>番</th><th>馬名</th><th>性齢</th><th>斤量</th><th>騎手</th><th>過去5走指数</th></tr>`;
+
+    for (const h of race[SR.HORSES]) {
+      const escapedName = h[SH.NAME].replace(/'/g, "\\'");
+      html += `<tr>`;
+      html += `<td>${h[SH.GATE]}</td>`;
+      html += `<td>${h[SH.NUM]}</td>`;
+      html += `<td class="name"><span class="horse-link" onclick="showHorseDetail('${escapedName}')">${h[SH.NAME]}</span></td>`;
+      html += `<td>${h[SH.AGE]}</td>`;
+      html += `<td>${h[SH.WEIGHT]}</td>`;
+      html += `<td>${h[SH.JOCKEY]}</td>`;
+      html += `<td>${buildMiniBar(h[SH.PAST])}</td>`;
+      html += `</tr>`;
+    }
+
+    html += `</table></div></div></div>`;
+  }
+
+  if (showCount < shutubaFiltered.length) {
+    html += `<button class="more-btn" onclick="loadMore()">もっと表示 (残り${shutubaFiltered.length - showCount}件)</button>`;
+  }
+
+  list.innerHTML = html;
+}
+
+function buildMiniBar(pastRaces) {
+  if (!pastRaces || pastRaces.length === 0) return '<span style="color:#999;font-size:11px">-</span>';
+
+  // 表示は古い順（左が古い、右が新しい）
+  const races = pastRaces.slice().reverse();
+  let html = '<div class="mini-bars">';
+  for (const p of races) {
+    const ability = parseInt(p[SP.ABILITY]);
+    if (isNaN(ability)) {
+      html += '<div class="mini-bar"><div class="mini-bar-fill idx-low" style="height:2px"></div><div class="mini-bar-val">-</div></div>';
+      continue;
+    }
+    // 高さ: 260→2px, 340→24px (線形マッピング)
+    const h = Math.max(2, Math.min(24, Math.round((ability - 260) / 80 * 22 + 2)));
+    const cls = idxClass(ability);
+    html += `<div class="mini-bar"><div class="mini-bar-fill ${cls}" style="height:${h}px" title="${p[SP.VENUE]} ${p[SP.DIST]}m ${p[SP.RANK]}着"></div><div class="mini-bar-val">${ability}</div></div>`;
+  }
+  html += '</div>';
+  return html;
 }
 
 // === 馬詳細画面 ===
@@ -455,6 +678,8 @@ document.getElementById('dist-filter').addEventListener('change', applyFilters);
 document.getElementById('class-filter').addEventListener('change', applyFilters);
 document.getElementById('year-filter').addEventListener('change', onYearChange);
 document.getElementById('date-filter').addEventListener('change', onDateChange);
+document.getElementById('shutuba-date-filter').addEventListener('change', onShutubaDateChange);
+document.getElementById('shutuba-venue-filter').addEventListener('change', renderShutuba);
 
 // meta.jsonから年リストを読み込み → URLパラメータ処理
 fetch('meta.json')
