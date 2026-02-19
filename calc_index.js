@@ -25,13 +25,13 @@ const WEIGHT_FACTOR = 0.2;
 // 脚溜め補正: 先頭から1秒後方で待機 → 上がりが約DRAFT_FACTOR秒速くなると仮定
 // 後方待機の展開利を割り引くための係数
 const DRAFT_FACTOR = 0.6;
-// 世代補正: 世代限定レースは古馬混合より能力が低いため基準指数を下げる
-// データ分析結果: OP 3歳-7/2歳-12, 1勝 3歳-2/2歳-3
-// 世代限定レースは古馬混合より走破タイムが遅い（能力差）ため
-// 基準指数を上げて指数を相対的に下げる
-const GEN_CORRECTION = {
-  OP:     { "3歳": 7, "2歳": 12 },
-  "1勝クラス": { "3歳": 2, "2歳": 3 },
+// 世代×クラス別 基準指数テーブル
+// aikba.netキャリブレーションデータおよび水準分析に基づく
+// ※G1/G2/G3/リステッドの区別はクラス名から判定不能のため、OP一律
+const BASE_INDEX = {
+  "2歳": { 未勝利: 280, "1勝クラス": 295, "2勝クラス": 300, "3勝クラス": 305, OP: 299 },
+  "3歳": { 未勝利: 287, "1勝クラス": 300, "2勝クラス": 302, "3勝クラス": 307, OP: 304 },
+  "古馬": { 未勝利: 287, "1勝クラス": 300, "2勝クラス": 305, "3勝クラス": 310, OP: 315 },
 };
 
 function detectGeneration(className) {
@@ -141,10 +141,9 @@ function main() {
     const bt = baseMap[btKey];
     if (!bt) { skipped++; continue; }
 
-    // 世代補正: 世代限定レースの基準指数を下げる
+    // 世代×クラス別 基準指数
     const gen = detectGeneration(className);
-    const genCorr = (GEN_CORRECTION[category] && GEN_CORRECTION[category][gen]) || 0;
-    const baseIndex = bt.基準指数 + genCorr;
+    const baseIndex = (BASE_INDEX[gen] && BASE_INDEX[gen][category]) || bt.基準指数;
 
     // 馬場差
     const rid = file.replace("result_", "").replace(".csv", "");
