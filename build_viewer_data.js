@@ -4,6 +4,7 @@ const path = require("path");
 const INDEX_DIR = "./race_index";
 const OUTPUT_DIR = "./docs";
 const CALENDAR_FILE = "./kaisai_calendar.json";
+const BABA_DIFF_FILE = "./baba_diff.json";
 
 function parseCSV(content) {
   const lines = content.split("\n").filter((l) => l.trim());
@@ -33,6 +34,17 @@ function main() {
       }
     }
     console.log(`Calendar: ${Object.keys(dateMap).length} venue-day mappings`);
+  }
+
+  // 馬場速度マップ: "年_競馬場_開催_日次" → 馬場速度
+  const babaSpeedMap = {};
+  if (fs.existsSync(BABA_DIFF_FILE)) {
+    const babaDiffs = JSON.parse(fs.readFileSync(BABA_DIFF_FILE, "utf-8"));
+    for (const bd of babaDiffs) {
+      const key = `${bd.年}_${bd.競馬場}_${bd.開催}_${bd.日次}`;
+      babaSpeedMap[key] = bd.馬場速度 || "";
+    }
+    console.log(`BabaDiff: ${Object.keys(babaSpeedMap).length} entries`);
   }
 
   const files = fs.readdirSync(INDEX_DIR).filter((f) => f.endsWith(".csv"));
@@ -66,10 +78,16 @@ function main() {
     const calKey = `${year}_${first["競馬場名"]}_${kaisaiNum}_${dayNum}`;
     const date = dateMap[calKey] || "";
 
+    // レース番号（raceId末尾2桁）
+    const raceNum = parseInt(raceId.substring(10, 12)) || 0;
+
+    // 馬場速度
+    const babaSpeed = babaSpeedMap[calKey] || "";
+
     const race = [
       raceId, year, first["競馬場名"], first["開催"], first["開催日"],
       first["クラス"], first["芝/ダート"], first["距離"],
-      first["天候"], first["馬場"], horses, date,
+      first["天候"], first["馬場"], horses, date, raceNum, babaSpeed,
     ];
 
     if (!byYear[year]) byYear[year] = [];
@@ -79,7 +97,12 @@ function main() {
   // 年ごとにファイル出力
   const years = Object.keys(byYear).sort().reverse();
   for (const year of years) {
-    byYear[year].sort((a, b) => b[0].localeCompare(a[0]));
+    byYear[year].sort((a, b) => {
+      const dateA = a[11] || a[0].substring(0, 8);
+      const dateB = b[11] || b[0].substring(0, 8);
+      if (dateA !== dateB) return dateB.localeCompare(dateA);
+      return b[12] - a[12]; // race number desc
+    });
     const outFile = path.join(OUTPUT_DIR, `data_${year}.json`);
     fs.writeFileSync(outFile, JSON.stringify(byYear[year]), "utf-8");
     const sizeMB = (fs.statSync(outFile).size / 1024 / 1024).toFixed(1);

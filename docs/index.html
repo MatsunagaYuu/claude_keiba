@@ -143,7 +143,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
 </div>
 
 <script>
-const R = { ID:0, YEAR:1, VENUE:2, KAISAI:3, DAY:4, CLASS:5, SURFACE:6, DIST:7, WEATHER:8, COND:9, HORSES:10, DATE:11 };
+const R = { ID:0, YEAR:1, VENUE:2, KAISAI:3, DAY:4, CLASS:5, SURFACE:6, DIST:7, WEATHER:8, COND:9, HORSES:10, DATE:11, RACENUM:12, BABA_SPEED:13 };
 const H = { RANK:0, GATE:1, NUM:2, NAME:3, AGE:4, WEIGHT:5, JOCKEY:6, TIME:7, MARGIN:8, PASSING:9, LAST3F:10, POP:11, ODDS:12, TOTAL:13, LAST3F_IDX:14, ABILITY:15 };
 
 let allRaces = [];
@@ -295,7 +295,9 @@ function render(horseName, idxMin) {
     html += `<div><div class="race-title">${race[R.VENUE]} ${race[R.DIST]}m ${race[R.CLASS]}</div>`;
     const d = race[R.DATE];
     const dateDisp = d ? `${d.substring(0,4)}/${d.substring(4,6)}/${d.substring(6,8)}` : `${race[R.YEAR]}年`;
-    html += `<div class="race-meta">${dateDisp} ${race[R.KAISAI]} ${race[R.DAY]} ${race[R.WEATHER]} ${race[R.COND]}</div></div>`;
+    const rNum = race[R.RACENUM] ? `${race[R.RACENUM]}R` : '';
+    const bSpeed = race[R.BABA_SPEED] || '';
+    html += `<div class="race-meta">${dateDisp} ${rNum} ${race[R.COND]}${bSpeed ? '/' + bSpeed : ''} ${race[R.WEATHER]}</div></div>`;
     html += `<span class="race-arrow">&#9654;</span></div>`;
 
     html += `<div class="race-body"><div class="table-wrap"><table class="horse-table">`;
