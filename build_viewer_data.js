@@ -3,6 +3,7 @@ const path = require("path");
 
 const INDEX_DIR = "./race_index";
 const OUTPUT_DIR = "./docs";
+const CALENDAR_FILE = "./kaisai_calendar.json";
 
 function parseCSV(content) {
   const lines = content.split("\n").filter((l) => l.trim());
@@ -20,6 +21,19 @@ function parseCSV(content) {
 
 function main() {
   if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR);
+
+  // カレンダーデータから逆引きマップ構築: "venue_kaisai_day" → "YYYYMMDD"
+  const dateMap = {};
+  if (fs.existsSync(CALENDAR_FILE)) {
+    const calendar = JSON.parse(fs.readFileSync(CALENDAR_FILE, "utf-8"));
+    for (const entry of calendar) {
+      for (const v of entry.venues) {
+        const key = `${entry.date.substring(0, 4)}_${v.venue}_${v.kaisai}_${v.day}`;
+        dateMap[key] = entry.date;
+      }
+    }
+    console.log(`Calendar: ${Object.keys(dateMap).length} venue-day mappings`);
+  }
 
   const files = fs.readdirSync(INDEX_DIR).filter((f) => f.endsWith(".csv"));
   console.log(`Index files: ${files.length}`);
@@ -46,10 +60,16 @@ function main() {
       ]);
     }
 
+    // 日付逆引き
+    const kaisaiNum = parseInt((first["開催"] || "").replace("回", "")) || 0;
+    const dayNum = parseInt((first["開催日"] || "").replace("日目", "")) || 0;
+    const calKey = `${year}_${first["競馬場名"]}_${kaisaiNum}_${dayNum}`;
+    const date = dateMap[calKey] || "";
+
     const race = [
       raceId, year, first["競馬場名"], first["開催"], first["開催日"],
       first["クラス"], first["芝/ダート"], first["距離"],
-      first["天候"], first["馬場"], horses,
+      first["天候"], first["馬場"], horses, date,
     ];
 
     if (!byYear[year]) byYear[year] = [];

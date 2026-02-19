@@ -114,6 +114,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
       <input type="number" id="idx-min" placeholder="指数≥">
     </div>
     <div class="filter-row">
+      <input type="date" id="date-filter" style="flex:0 0 auto;">
       <select id="venue-filter"><option value="">競馬場</option></select>
       <select id="dist-filter"><option value="">距離</option></select>
       <select id="class-filter"><option value="">クラス</option></select>
@@ -142,7 +143,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
 </div>
 
 <script>
-const R = { ID:0, YEAR:1, VENUE:2, KAISAI:3, DAY:4, CLASS:5, SURFACE:6, DIST:7, WEATHER:8, COND:9, HORSES:10 };
+const R = { ID:0, YEAR:1, VENUE:2, KAISAI:3, DAY:4, CLASS:5, SURFACE:6, DIST:7, WEATHER:8, COND:9, HORSES:10, DATE:11 };
 const H = { RANK:0, GATE:1, NUM:2, NAME:3, AGE:4, WEIGHT:5, JOCKEY:6, TIME:7, MARGIN:8, PASSING:9, LAST3F:10, POP:11, ODDS:12, TOTAL:13, LAST3F_IDX:14, ABILITY:15 };
 
 let allRaces = [];
@@ -237,8 +238,11 @@ function applyFilters() {
   const venue = document.getElementById('venue-filter').value;
   const dist = document.getElementById('dist-filter').value;
   const cls = document.getElementById('class-filter').value;
+  const dateVal = document.getElementById('date-filter').value; // "YYYY-MM-DD"
+  const dateStr = dateVal ? dateVal.replace(/-/g, '') : ''; // → "YYYYMMDD"
 
   filtered = allRaces.filter(race => {
+    if (dateStr && race[R.DATE] !== dateStr) return false;
     if (venue && race[R.VENUE] !== venue) return false;
     if (dist && race[R.DIST] !== dist) return false;
     if (cls && race[R.CLASS] !== cls) return false;
@@ -256,6 +260,19 @@ function applyFilters() {
 
   showCount = PAGE_SIZE;
   render(horseName, idxMin);
+}
+
+async function onDateChange() {
+  const dateVal = document.getElementById('date-filter').value;
+  if (!dateVal) { applyFilters(); return; }
+  const year = dateVal.substring(0, 4);
+  const yearEl = document.getElementById('year-filter');
+  if (yearEl.value !== year) {
+    yearEl.value = year;
+    await onYearChange();
+  } else {
+    applyFilters();
+  }
 }
 
 function render(horseName, idxMin) {
@@ -276,7 +293,9 @@ function render(horseName, idxMin) {
     html += `<div class="race-card" id="race-${id}">`;
     html += `<div class="race-header" onclick="toggle('${id}')">`;
     html += `<div><div class="race-title">${race[R.VENUE]} ${race[R.DIST]}m ${race[R.CLASS]}</div>`;
-    html += `<div class="race-meta">${race[R.YEAR]}年 ${race[R.KAISAI]} ${race[R.DAY]} ${race[R.WEATHER]} ${race[R.COND]}</div></div>`;
+    const d = race[R.DATE];
+    const dateDisp = d ? `${d.substring(0,4)}/${d.substring(4,6)}/${d.substring(6,8)}` : `${race[R.YEAR]}年`;
+    html += `<div class="race-meta">${dateDisp} ${race[R.KAISAI]} ${race[R.DAY]} ${race[R.WEATHER]} ${race[R.COND]}</div></div>`;
     html += `<span class="race-arrow">&#9654;</span></div>`;
 
     html += `<div class="race-body"><div class="table-wrap"><table class="horse-table">`;
@@ -381,7 +400,9 @@ async function showHorseDetail(name) {
 
   for (const { race, horse } of results) {
     html += '<tr>';
-    html += `<td>${race[R.YEAR]}/${race[R.KAISAI]}/${race[R.DAY]}</td>`;
+    const dd = race[R.DATE];
+    const dateStr = dd ? `${dd.substring(0,4)}/${dd.substring(4,6)}/${dd.substring(6,8)}` : `${race[R.YEAR]}`;
+    html += `<td>${dateStr}</td>`;
     html += `<td>${race[R.VENUE]}</td>`;
     html += `<td>${race[R.DIST]}m</td>`;
     html += `<td style="text-align:left;font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis">${race[R.CLASS]}</td>`;
@@ -431,6 +452,7 @@ document.getElementById('venue-filter').addEventListener('change', applyFilters)
 document.getElementById('dist-filter').addEventListener('change', applyFilters);
 document.getElementById('class-filter').addEventListener('change', applyFilters);
 document.getElementById('year-filter').addEventListener('change', onYearChange);
+document.getElementById('date-filter').addEventListener('change', onDateChange);
 
 // meta.jsonから年リストを読み込み → URLパラメータ処理
 fetch('meta.json')
