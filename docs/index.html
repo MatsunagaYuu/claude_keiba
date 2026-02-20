@@ -441,7 +441,7 @@ async function loadShutubaMeta() {
     const res = await fetch('shutuba_meta.json');
     shutubaMeta = await res.json();
     const dateEl = document.getElementById('shutuba-date-filter');
-    dateEl.innerHTML = '<option value="">日付を選択</option>';
+    dateEl.innerHTML = '<option value="">全日程</option>';
     for (const m of shutubaMeta) {
       const o = document.createElement('option');
       o.value = m.date;
@@ -449,52 +449,61 @@ async function loadShutubaMeta() {
       o.textContent = `${d.substring(0,4)}/${d.substring(4,6)}/${d.substring(6,8)} (${m.count}R)`;
       dateEl.appendChild(o);
     }
-    // 最新日付を自動選択
-    if (shutubaMeta.length > 0) {
-      dateEl.value = shutubaMeta[0].date;
-      await onShutubaDateChange();
-    } else {
+
+    if (shutubaMeta.length === 0) {
       document.getElementById('race-list').innerHTML = '<div class="no-results">出馬表データなし</div>';
       document.getElementById('stats').textContent = '';
+      return;
     }
+
+    // 全日付データを一括ロード
+    document.getElementById('race-list').innerHTML = '<div class="loading">読み込み中...</div>';
+    const allShutuba = [];
+    for (const m of shutubaMeta) {
+      if (!shutubaCache[m.date]) {
+        const r = await fetch(`shutuba_${m.date}.json`);
+        shutubaCache[m.date] = await r.json();
+      }
+      // 各レースに日付情報を付加
+      for (const race of shutubaCache[m.date]) {
+        race._date = m.date;
+      }
+      allShutuba.push(...shutubaCache[m.date]);
+    }
+    shutubaData = allShutuba;
+
+    // 競馬場フィルタ構築
+    buildShutubaVenueFilter();
+    renderShutuba();
   } catch (e) {
     document.getElementById('race-list').innerHTML = '<div class="loading">出馬表データなし</div>';
     document.getElementById('stats').textContent = '';
   }
 }
 
-async function onShutubaDateChange() {
+function buildShutubaVenueFilter() {
+  const venueEl = document.getElementById('shutuba-venue-filter');
+  const curVenue = venueEl.value;
+  venueEl.innerHTML = '<option value="">競馬場</option>';
+  const venues = [...new Set(shutubaData.map(r => r[SR.VENUE]))].sort();
+  venues.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; venueEl.appendChild(o); });
+  venueEl.value = venues.includes(curVenue) ? curVenue : '';
+}
+
+function onShutubaDateChange() {
   const date = document.getElementById('shutuba-date-filter').value;
   if (!date) {
-    shutubaData = [];
-    shutubaFiltered = [];
-    document.getElementById('stats').textContent = '';
-    document.getElementById('race-list').innerHTML = '<div class="loading">日付を選択してください</div>';
-    return;
-  }
-
-  document.getElementById('race-list').innerHTML = '<div class="loading">読み込み中...</div>';
-
-  try {
-    if (!shutubaCache[date]) {
-      const res = await fetch(`shutuba_${date}.json`);
-      shutubaCache[date] = await res.json();
+    // 全日程
+    const allShutuba = [];
+    for (const m of shutubaMeta) {
+      if (shutubaCache[m.date]) allShutuba.push(...shutubaCache[m.date]);
     }
-    shutubaData = shutubaCache[date];
-
-    // 競馬場フィルタ構築
-    const venueEl = document.getElementById('shutuba-venue-filter');
-    const curVenue = venueEl.value;
-    venueEl.innerHTML = '<option value="">競馬場</option>';
-    const venues = [...new Set(shutubaData.map(r => r[SR.VENUE]))].sort();
-    venues.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; venueEl.appendChild(o); });
-    venueEl.value = venues.includes(curVenue) ? curVenue : '';
-
-    showCount = PAGE_SIZE;
-    renderShutuba();
-  } catch (e) {
-    document.getElementById('race-list').innerHTML = '<div class="loading">読み込みエラー: ' + e.message + '</div>';
+    shutubaData = allShutuba;
+  } else {
+    shutubaData = shutubaCache[date] || [];
   }
+  buildShutubaVenueFilter();
+  renderShutuba();
 }
 
 function renderShutuba() {
@@ -510,15 +519,16 @@ function renderShutuba() {
     return;
   }
 
-  const visible = shutubaFiltered.slice(0, showCount);
   let html = '';
 
-  for (const race of visible) {
+  for (const race of shutubaFiltered) {
     const id = race[SR.ID];
     html += `<div class="race-card" id="race-${id}">`;
     html += `<div class="race-header" onclick="toggle('${id}')">`;
+    const sd = race._date || '';
+    const sDateDisp = sd ? `${sd.substring(4,6)}/${sd.substring(6,8)}` : '';
     html += `<div><div class="race-title">${race[SR.VENUE]} ${race[SR.DIST]}m ${race[SR.CLASS]}</div>`;
-    html += `<div class="race-meta">${race[SR.RACENUM]}R ${race[SR.SURFACE]}</div></div>`;
+    html += `<div class="race-meta">${sDateDisp} ${race[SR.RACENUM]}R ${race[SR.SURFACE]}</div></div>`;
     html += `<span class="race-arrow">&#9654;</span></div>`;
 
     html += `<div class="race-body"><div class="table-wrap"><table class="horse-table">`;
@@ -538,10 +548,6 @@ function renderShutuba() {
     }
 
     html += `</table></div></div></div>`;
-  }
-
-  if (showCount < shutubaFiltered.length) {
-    html += `<button class="more-btn" onclick="loadMore()">もっと表示 (残り${shutubaFiltered.length - showCount}件)</button>`;
   }
 
   list.innerHTML = html;
