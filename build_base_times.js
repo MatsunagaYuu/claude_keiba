@@ -4,8 +4,8 @@ const path = require("path");
 const RACE_RESULT_DIR = "./race_result";
 const OUTPUT_FILE = "./base_times.json";
 
-// 対象条件
-const TARGET_SURFACE = "芝";
+// 対象: 芝・ダート両方（障害は除外）
+const TARGET_SURFACES = ["芝", "ダート"];
 
 // クラス名 → カテゴリマッピング
 function classifyRace(className) {
@@ -64,7 +64,7 @@ function main() {
     .filter((f) => f.endsWith(".csv"));
   console.log(`CSV files found: ${files.length}`);
 
-  // 良馬場のみ収集: key = "競馬場_距離_クラス"
+  // 良馬場のみ収集: key = "surface_競馬場_距離_クラス"
   const groups = {};
   let skipped = 0;
   let processedRaces = 0;
@@ -82,8 +82,8 @@ function main() {
     const condition = first["馬場"];
     const className = first["クラス"];
 
-    // フィルタ: 芝・良馬場のみ
-    if (surface !== TARGET_SURFACE) continue;
+    // フィルタ: 芝またはダート・良馬場のみ
+    if (!TARGET_SURFACES.includes(surface)) continue;
     if (condition !== "良") continue;
 
     const category = classifyRace(className);
@@ -92,8 +92,8 @@ function main() {
       continue;
     }
 
-    const key = `${venue}_${dist}_${category}`;
-    if (!groups[key]) groups[key] = { early: [], last3f: [] };
+    const key = `${surface}_${venue}_${dist}_${category}`;
+    if (!groups[key]) groups[key] = { surface, early: [], last3f: [] };
 
     // 全完走馬のタイムを収集（着順が数字の馬のみ）
     let raceHasData = false;
@@ -118,11 +118,11 @@ function main() {
     `Processed: ${processedRaces} races (良 only), ${processedHorses} horses, Skipped: ${skipped} (unclassified)`
   );
 
-  // 前半-上がり回帰スロープを (競馬場, 距離) 単位で算出
+  // 前半-上がり回帰スロープを (surface, 競馬場, 距離) 単位で算出
   const regressionData = {};
   for (const [key, data] of Object.entries(groups)) {
-    const [venue, dist] = key.split("_");
-    const rkey = `${venue}_${dist}`;
+    const [surface, venue, dist] = key.split("_");
+    const rkey = `${surface}_${venue}_${dist}`;
     if (!regressionData[rkey]) regressionData[rkey] = { early: [], last3f: [] };
     for (let i = 0; i < data.early.length; i++) {
       regressionData[rkey].early.push(data.early[i]);
@@ -150,16 +150,17 @@ function main() {
   const baseTimes = {};
   for (const [key, data] of Object.entries(groups)) {
     if (data.early.length === 0) continue;
-    const [venue, dist, category] = key.split("_");
+    const [surface, venue, dist, category] = key.split("_");
 
     const avgEarly =
       data.early.reduce((a, b) => a + b, 0) / data.early.length;
     const avgLast3f =
       data.last3f.reduce((a, b) => a + b, 0) / data.last3f.length;
     const avgTotal = avgEarly + avgLast3f;
-    const rkey = `${venue}_${dist}`;
+    const rkey = `${surface}_${venue}_${dist}`;
 
     baseTimes[key] = {
+      "芝/ダート": surface,
       競馬場: venue,
       距離: dist,
       クラス: category,
@@ -178,19 +179,24 @@ function main() {
   // ソート
   const sorted = Object.values(baseTimes).sort(
     (a, b) =>
+      a["芝/ダート"].localeCompare(b["芝/ダート"]) ||
       a.競馬場.localeCompare(b.競馬場) ||
       parseInt(a.距離) - parseInt(b.距離) ||
       a.クラス.localeCompare(b.クラス)
   );
 
-  console.log("\n=== 基準タイムテーブル（良馬場） ===");
-  console.log(
-    "競馬場  距離   クラス        基準指数  前半     上がり  走破      サンプル"
-  );
-  for (const row of sorted) {
+  for (const surf of TARGET_SURFACES) {
+    const surfData = sorted.filter(r => r["芝/ダート"] === surf);
+    console.log(`\n=== 基準タイムテーブル（${surf}・良馬場） ===`);
     console.log(
-      `${row.競馬場.padEnd(4)}  ${row.距離.padStart(4)}m  ${row.クラス.padEnd(10)}  ${String(row.基準指数).padStart(4)}    ${row.基準前半.padStart(7)}  ${row.基準上がり.padStart(5)}   ${row.基準走破.padStart(7)}   ${String(row.サンプル数).padStart(4)}`
+      "競馬場  距離   クラス        基準指数  前半     上がり  走破      サンプル"
     );
+    for (const row of surfData) {
+      console.log(
+        `${row.競馬場.padEnd(4)}  ${row.距離.padStart(4)}m  ${row.クラス.padEnd(10)}  ${String(row.基準指数).padStart(4)}    ${row.基準前半.padStart(7)}  ${row.基準上がり.padStart(5)}   ${row.基準走破.padStart(7)}   ${String(row.サンプル数).padStart(4)}`
+      );
+    }
+    console.log(`${surf}: ${surfData.length} entries`);
   }
 
   // 出力

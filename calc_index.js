@@ -25,13 +25,20 @@ const WEIGHT_FACTOR = 0.2;
 // 脚溜め補正: 先頭から1秒後方で待機 → 上がりが約DRAFT_FACTOR秒速くなると仮定
 // 後方待機の展開利を割り引くための係数
 const DRAFT_FACTOR = 0.6;
-// 世代×クラス別 基準指数テーブル
-// aikba.netキャリブレーションデータおよび水準分析に基づく
-// ※G1/G2/G3/リステッドの区別はクラス名から判定不能のため、OP一律
+// 世代×クラス別 基準指数テーブル（芝/ダート別）
+// 2歳ダートは芝より10ポイント低く設定（筋力未発達で踏み込む力が不足）
+// 3歳以降は芝と同水準に収束
 const BASE_INDEX = {
-  "2歳": { 未勝利: 280, "1勝クラス": 295, "2勝クラス": 300, "3勝クラス": 305, OP: 299 },
-  "3歳": { 未勝利: 287, "1勝クラス": 300, "2勝クラス": 302, "3勝クラス": 307, OP: 304 },
-  "古馬": { 未勝利: 287, "1勝クラス": 300, "2勝クラス": 305, "3勝クラス": 310, OP: 315 },
+  芝: {
+    "2歳": { 未勝利: 280, "1勝クラス": 295, "2勝クラス": 300, "3勝クラス": 305, OP: 299 },
+    "3歳": { 未勝利: 287, "1勝クラス": 300, "2勝クラス": 302, "3勝クラス": 307, OP: 304 },
+    "古馬": { 未勝利: 287, "1勝クラス": 300, "2勝クラス": 305, "3勝クラス": 310, OP: 315 },
+  },
+  ダート: {
+    "2歳": { 未勝利: 270, "1勝クラス": 285, "2勝クラス": 290, "3勝クラス": 295, OP: 289 },
+    "3歳": { 未勝利: 287, "1勝クラス": 300, "2勝クラス": 302, "3勝クラス": 307, OP: 304 },
+    "古馬": { 未勝利: 287, "1勝クラス": 300, "2勝クラス": 305, "3勝クラス": 310, OP: 315 },
+  },
 };
 
 function detectGeneration(className) {
@@ -81,18 +88,20 @@ function classifyRace(className) {
 
 function main() {
   const baseTimes = JSON.parse(fs.readFileSync(BASE_TIMES_FILE, "utf-8"));
-  // キー: "競馬場_距離_クラス"（良馬場基準）
+  // キー: "surface_競馬場_距離_クラス"（良馬場基準）
   const baseMap = {};
   for (const bt of baseTimes) {
-    const key = `${bt.競馬場}_${bt.距離}_${bt.クラス}`;
+    const surface = bt["芝/ダート"] || "芝"; // 後方互換
+    const key = `${surface}_${bt.競馬場}_${bt.距離}_${bt.クラス}`;
     baseMap[key] = bt;
   }
 
-  // 馬場差: キー "年_競馬場_開催_日次"
+  // 馬場差: キー "surface_年_競馬場_開催_日次"
   const babaDiffs = JSON.parse(fs.readFileSync(BABA_DIFF_FILE, "utf-8"));
   const babaMap = {};
   for (const bd of babaDiffs) {
-    const key = `${bd.年}_${bd.競馬場}_${bd.開催}_${bd.日次}`;
+    const surface = bd["芝/ダート"] || "芝"; // 後方互換
+    const key = `${surface}_${bd.年}_${bd.競馬場}_${bd.開催}_${bd.日次}`;
     babaMap[key] = bd;
   }
 
@@ -128,7 +137,8 @@ function main() {
     const kaisai = first["開催"];
     const nichime = first["開催日"];
 
-    if (surface !== "芝") {
+    // 障害はスキップ、芝・ダートのみ処理
+    if (surface !== "芝" && surface !== "ダート") {
       skipped++;
       continue;
     }
@@ -137,20 +147,21 @@ function main() {
     if (!category) { skipped++; continue; }
 
     // 良馬場基準タイム
-    const btKey = `${venue}_${dist}_${category}`;
+    const btKey = `${surface}_${venue}_${dist}_${category}`;
     const bt = baseMap[btKey];
     if (!bt) { skipped++; continue; }
 
     // 世代×クラス別 基準指数
     const gen = detectGeneration(className);
-    const baseIndex = (BASE_INDEX[gen] && BASE_INDEX[gen][category]) || bt.基準指数;
+    const surfIdx = BASE_INDEX[surface] || BASE_INDEX["芝"];
+    const baseIndex = (surfIdx[gen] && surfIdx[gen][category]) || bt.基準指数;
 
     // 馬場差
     const rid = file.replace("result_", "").replace(".csv", "");
     const year = rid.substring(0, 4);
     const kaiNum = parseInt(kaisai.replace("回", ""));
     const dayNum = parseInt(nichime.replace("日目", ""));
-    const babaKey = `${year}_${venue}_${kaiNum}_${dayNum}`;
+    const babaKey = `${surface}_${year}_${venue}_${kaiNum}_${dayNum}`;
     const bd = babaMap[babaKey];
     // 馬場差を当該距離に変換（baba_diffは2000m換算）
     const babaDiff = bd ? bd.馬場差 * (parseInt(dist) / 2000) : 0;

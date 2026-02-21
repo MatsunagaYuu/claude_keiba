@@ -36,12 +36,13 @@ function main() {
     console.log(`Calendar: ${Object.keys(dateMap).length} venue-day mappings`);
   }
 
-  // 馬場速度マップ: "年_競馬場_開催_日次" → 馬場速度
+  // 馬場速度マップ: "surface_年_競馬場_開催_日次" → 馬場速度
   const babaSpeedMap = {};
   if (fs.existsSync(BABA_DIFF_FILE)) {
     const babaDiffs = JSON.parse(fs.readFileSync(BABA_DIFF_FILE, "utf-8"));
     for (const bd of babaDiffs) {
-      const key = `${bd.年}_${bd.競馬場}_${bd.開催}_${bd.日次}`;
+      const surface = bd["芝/ダート"] || "芝";
+      const key = `${surface}_${bd.年}_${bd.競馬場}_${bd.開催}_${bd.日次}`;
       babaSpeedMap[key] = bd.馬場速度 || "";
     }
     console.log(`BabaDiff: ${Object.keys(babaSpeedMap).length} entries`);
@@ -81,8 +82,10 @@ function main() {
     // レース番号（raceId末尾2桁）
     const raceNum = parseInt(raceId.substring(10, 12)) || 0;
 
-    // 馬場速度
-    const babaSpeed = babaSpeedMap[calKey] || "";
+    // 馬場速度（芝/ダート別）
+    const surface = first["芝/ダート"] || "";
+    const babaSpeedKey = `${surface}_${calKey}`;
+    const babaSpeed = babaSpeedMap[babaSpeedKey] || "";
 
     const race = [
       raceId, year, first["競馬場名"], first["開催"], first["開催日"],

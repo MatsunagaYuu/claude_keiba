@@ -51,7 +51,8 @@ function main() {
   const baseTimes = JSON.parse(fs.readFileSync(BASE_TIMES_FILE, "utf-8"));
   const baseMap = {};
   for (const bt of baseTimes) {
-    const key = `${bt.競馬場}_${bt.距離}_${bt.クラス}`;
+    const surface = bt["芝/ダート"] || "芝"; // 後方互換
+    const key = `${surface}_${bt.競馬場}_${bt.距離}_${bt.クラス}`;
     baseMap[key] = bt;
   }
 
@@ -59,7 +60,7 @@ function main() {
     .readdirSync(RACE_RESULT_DIR)
     .filter((f) => f.endsWith(".csv"));
 
-  // 日ごとの偏差を収集: key = "競馬場_開催_日次"
+  // 日ごと・surface別の偏差を収集: key = "surface_年_競馬場_開催_日次"
   const dayGroups = {};
 
   for (const file of files) {
@@ -75,12 +76,12 @@ function main() {
     const kaisai = first["開催"];
     const nichime = first["開催日"];
 
-    if (surface !== "芝") continue;
+    if (surface !== "芝" && surface !== "ダート") continue;
 
     const category = classifyRace(className);
     if (!category) continue;
 
-    const btKey = `${venue}_${dist}_${category}`;
+    const btKey = `${surface}_${venue}_${dist}_${category}`;
     const bt = baseMap[btKey];
     if (!bt) continue;
 
@@ -89,10 +90,10 @@ function main() {
     const year = raceId.substring(0, 4);
     const kaiNum = parseInt(kaisai.replace("回", ""));
     const dayNum = parseInt(nichime.replace("日目", ""));
-    const dayKey = `${year}_${venue}_${kaiNum}_${dayNum}`;
+    const dayKey = `${surface}_${year}_${venue}_${kaiNum}_${dayNum}`;
 
     if (!dayGroups[dayKey]) {
-      dayGroups[dayKey] = { year: parseInt(year), venue, kai: kaiNum, day: dayNum, deviations: [] };
+      dayGroups[dayKey] = { surface, year: parseInt(year), venue, kai: kaiNum, day: dayNum, deviations: [] };
     }
 
     // 全完走馬のタイム偏差を収集（距離正規化: 2000m換算秒）
@@ -117,6 +118,7 @@ function main() {
       group.deviations.reduce((a, b) => a + b, 0) / group.deviations.length;
 
     babaDiffs.push({
+      "芝/ダート": group.surface,
       年: group.year,
       競馬場: group.venue,
       開催: group.kai,
@@ -129,12 +131,11 @@ function main() {
   // ソート
   babaDiffs.sort(
     (a, b) =>
+      a["芝/ダート"].localeCompare(b["芝/ダート"]) ||
       a.年 - b.年 || a.競馬場.localeCompare(b.競馬場) || a.開催 - b.開催 || a.日次 - b.日次
   );
 
   // 7段階分類（絶対閾値）
-  // 馬場差は良馬場基準からの偏差(2000m換算秒)。正=遅い、負=速い。
-  // 良馬場は馬場差≈0なので基本的に「極速」になる設計。
   const BABA_LABELS = [
     { label: "極速", max: 0.5 },
     { label: "速",   max: 1.0 },
@@ -149,34 +150,25 @@ function main() {
   for (const d of babaDiffs) {
     d.馬場速度 = BABA_LABELS.find((b) => d.馬場差 < b.max).label;
   }
-  const labels = BABA_LABELS.map((b) => b.label);
 
-  console.log(`\n=== 馬場差 7段階分類（絶対閾値） ===`);
-  console.log("分類    馬場差閾値(2000m換算秒)    該当日数");
-  for (let i = 0; i < BABA_LABELS.length; i++) {
-    const lo = i === 0 ? -Infinity : BABA_LABELS[i - 1].max;
-    const hi = BABA_LABELS[i].max;
-    const count = babaDiffs.filter((d) => d.馬場速度 === BABA_LABELS[i].label).length;
-    console.log(
-      `${BABA_LABELS[i].label.padEnd(6)}  ${lo === -Infinity ? "      " : lo.toFixed(2).padStart(6)} ~ ${hi === Infinity ? "      " : hi.toFixed(2).padStart(6)}    ${String(count).padStart(4)}`
-    );
-  }
-
-  // 統計
-  const allDevs = babaDiffs.map((d) => d.馬場差).sort((a, b) => a - b);
-  const n = allDevs.length;
-  console.log(`\n全${babaDiffs.length}日`);
-  console.log(`馬場差 平均: ${(allDevs.reduce((a, b) => a + b, 0) / n).toFixed(2)}秒`);
-  console.log(`馬場差 最速: ${allDevs[0].toFixed(2)}秒, 最遅: ${allDevs[n - 1].toFixed(2)}秒`);
-
-  // サンプル: 天皇賞秋2023
-  const tenno = babaDiffs.find(
-    (d) => d.競馬場 === "東京" && d.開催 === 4 && d.日次 === 9
-  );
-  if (tenno) {
-    console.log(
-      `\n天皇賞秋2023: 馬場差=${tenno.馬場差}秒 → ${tenno.馬場速度}`
-    );
+  for (const surf of ["芝", "ダート"]) {
+    const surfData = babaDiffs.filter(d => d["芝/ダート"] === surf);
+    if (surfData.length === 0) continue;
+    console.log(`\n=== ${surf} 馬場差 7段階分類 ===`);
+    console.log("分類    馬場差閾値(2000m換算秒)    該当日数");
+    for (let i = 0; i < BABA_LABELS.length; i++) {
+      const lo = i === 0 ? -Infinity : BABA_LABELS[i - 1].max;
+      const hi = BABA_LABELS[i].max;
+      const count = surfData.filter((d) => d.馬場速度 === BABA_LABELS[i].label).length;
+      console.log(
+        `${BABA_LABELS[i].label.padEnd(6)}  ${lo === -Infinity ? "      " : lo.toFixed(2).padStart(6)} ~ ${hi === Infinity ? "      " : hi.toFixed(2).padStart(6)}    ${String(count).padStart(4)}`
+      );
+    }
+    const allDevs = surfData.map((d) => d.馬場差).sort((a, b) => a - b);
+    const n = allDevs.length;
+    console.log(`全${n}日`);
+    console.log(`馬場差 平均: ${(allDevs.reduce((a, b) => a + b, 0) / n).toFixed(2)}秒`);
+    console.log(`馬場差 最速: ${allDevs[0].toFixed(2)}秒, 最遅: ${allDevs[n - 1].toFixed(2)}秒`);
   }
 
   // 出力
