@@ -7,6 +7,7 @@ echo "=== ビューアデータビルド ==="
 node build_baba_diff.js
 node build_viewer_data.js
 node build_shutuba_data.js
+cp base_times.json docs/
 
 echo ""
 echo "=== Git push ==="
