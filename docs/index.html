@@ -102,13 +102,14 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
 .past-races { display: inline-flex; gap: 3px; vertical-align: middle; }
 .past-race {
   display: flex; flex-direction: column; align-items: center; font-size: 9px; line-height: 1.4;
-  border: 1px solid #e0e0e0; border-radius: 3px; padding: 2px 4px; min-width: 72px;
+  border: 1px solid #e0e0e0; border-radius: 3px; padding: 2px 4px; min-width: 76px;
 }
 .past-race .pr-idx { font-weight: 700; font-size: 11px; }
+.past-race .pr-rank { font-size: 9px; color: #555; }
 .past-race .pr-info { color: #888; white-space: nowrap; }
 .past-race .pr-time { color: #555; white-space: nowrap; }
-.past-race .pr-link { color: #1a5c2a; text-decoration: underline; cursor: pointer; }
-.past-race .pr-link:active { color: #0d3015; }
+.past-race a.pr-link { color: #1a5c2a; text-decoration: underline; cursor: pointer; }
+.past-race a.pr-link:active { color: #0d3015; }
 
 /* 出馬表メニュー */
 .venue-group {
@@ -571,7 +572,7 @@ function renderShutuba() {
         html += `<tr>`;
         html += `<td>${h[SH.GATE]}</td>`;
         html += `<td>${h[SH.NUM]}</td>`;
-        html += `<td class="name" style="max-width:64px;overflow:hidden;text-overflow:ellipsis"><span class="horse-link" onclick="showHorseDetail('${escapedName}')">${h[SH.NAME]}</span></td>`;
+        html += `<td class="name"><span class="horse-link" onclick="showHorseDetail('${escapedName}')">${h[SH.NAME]}</span></td>`;
         html += `<td>${h[SH.AGE]}</td>`;
         html += `<td>${h[SH.WEIGHT]}</td>`;
         html += `<td>${h[SH.JOCKEY]}</td>`;
@@ -594,24 +595,26 @@ function selectShutubaRace(id) {
 function buildPastRaces(pastRaces) {
   if (!pastRaces || pastRaces.length === 0) return '<span style="color:#999;font-size:11px">-</span>';
 
-  const races = pastRaces.slice().reverse();
+  // 左が最新（reverseしない）
   let html = '<div class="past-races">';
-  for (const p of races) {
+  for (const p of pastRaces) {
     const ability = parseInt(p[SP.ABILITY]);
     const cls = isNaN(ability) ? 'idx-low' : idxClass(ability);
     const d = p[SP.DATE] || '';
-    const dateStr = d ? `${d.substring(4,6)}/${d.substring(6,8)}` : '';
+    const dateStr = d ? `${d.substring(2,4)}/${d.substring(4,6)}/${d.substring(6,8)}` : '';
     const surfDisp = p[SP.SURFACE] === 'ダート' ? 'ダ' : (p[SP.SURFACE] || '').charAt(0);
     const venue = (p[SP.VENUE] || '').substring(0, 2);
     const baba = p[SP.BABA_SPEED] || '';
     const time = p[SP.TIME] || '';
     const last3f = p[SP.LAST3F] || '';
     const raceId = p[SP.RACE_ID] || '';
+    const rank = p[SP.RANK] || '';
 
     html += `<div class="past-race">`;
     html += `<div class="pr-idx ${cls}">${isNaN(ability) ? '-' : ability}</div>`;
+    html += `<div class="pr-rank">${rank}着</div>`;
     if (raceId && dateStr) {
-      html += `<div class="pr-info"><span class="pr-link" onclick="showRaceDetail('${raceId}')">${dateStr} ${venue}</span></div>`;
+      html += `<div class="pr-info"><a class="pr-link" href="?race=${raceId}" target="_blank" onclick="event.stopPropagation()">${dateStr} ${venue}</a></div>`;
     } else {
       html += `<div class="pr-info">${dateStr} ${venue}</div>`;
     }
