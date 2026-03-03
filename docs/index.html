@@ -165,6 +165,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
       <input type="date" id="date-filter" style="flex:0 0 auto;">
       <select id="venue-filter"><option value="">競馬場</option></select>
       <select id="dist-filter"><option value="">距離</option></select>
+      <input type="number" id="dist-min" placeholder="距離≥" style="width:70px;flex:0 0 70px;">
       <select id="class-filter"><option value="">クラス</option></select>
       <select id="year-filter"><option value="">年</option></select>
     </div>
@@ -285,6 +286,20 @@ function switchTab(tab) {
 }
 
 // === 結果タブ ===
+// クラス順序（高い順）
+const CLASS_RANK = { 'OP': 5, '3勝クラス': 4, '2勝クラス': 3, '1勝クラス': 2, '未勝利': 1 };
+const CLASS_LABELS = ['OP', '3勝クラス', '2勝クラス', '1勝クラス', '未勝利'];
+
+function classifyForFilter(cls) {
+  if (!cls) return 0;
+  if (/G[1-3I]|GI|GII|GIII|リステッド|オープン|OP/.test(cls)) return 5;
+  if (/3勝|1600万下/.test(cls)) return 4;
+  if (/2勝|1000万下/.test(cls)) return 3;
+  if (/1勝|500万下/.test(cls)) return 2;
+  if (/未勝利|新馬/.test(cls)) return 1;
+  return 0;
+}
+
 function buildSubFilters() {
   const venueEl = document.getElementById('venue-filter');
   const distEl = document.getElementById('dist-filter');
@@ -300,11 +315,25 @@ function buildSubFilters() {
 
   const venues = [...new Set(allRaces.map(r => r[R.VENUE]))].sort();
   const dists = [...new Set(allRaces.map(r => r[R.DIST]))].sort((a,b) => a - b);
-  const classes = [...new Set(allRaces.map(r => r[R.CLASS]))].sort();
 
   venues.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; venueEl.appendChild(o); });
   dists.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v + 'm'; distEl.appendChild(o); });
-  classes.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; classEl.appendChild(o); });
+
+  // クラス「以上」フィルタ
+  const grp1 = document.createElement('optgroup'); grp1.label = '以上';
+  for (const lbl of CLASS_LABELS) {
+    const o = document.createElement('option');
+    o.value = '>=' + CLASS_RANK[lbl];
+    o.textContent = lbl + '以上';
+    grp1.appendChild(o);
+  }
+  classEl.appendChild(grp1);
+
+  // 個別クラス
+  const classes = [...new Set(allRaces.map(r => r[R.CLASS]))].sort();
+  const grp2 = document.createElement('optgroup'); grp2.label = '個別';
+  classes.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; grp2.appendChild(o); });
+  classEl.appendChild(grp2);
 
   venueEl.value = curVenue;
   distEl.value = curDist;
@@ -360,15 +389,24 @@ function applyFilters() {
   const idxMin = parseInt(document.getElementById('idx-min').value) || 0;
   const venue = document.getElementById('venue-filter').value;
   const dist = document.getElementById('dist-filter').value;
+  const distMin = parseInt(document.getElementById('dist-min').value) || 0;
   const cls = document.getElementById('class-filter').value;
   const dateVal = document.getElementById('date-filter').value;
   const dateStr = dateVal ? dateVal.replace(/-/g, '') : '';
+
+  // クラス「以上」フィルタの判定
+  const clsMinRank = cls.startsWith('>=') ? parseInt(cls.substring(2)) : 0;
 
   filtered = allRaces.filter(race => {
     if (dateStr && race[R.DATE] !== dateStr) return false;
     if (venue && race[R.VENUE] !== venue) return false;
     if (dist && race[R.DIST] !== dist) return false;
-    if (cls && race[R.CLASS] !== cls) return false;
+    if (distMin && parseInt(race[R.DIST]) < distMin) return false;
+    if (clsMinRank) {
+      if (classifyForFilter(race[R.CLASS]) < clsMinRank) return false;
+    } else if (cls) {
+      if (race[R.CLASS] !== cls) return false;
+    }
 
     if (horseName || idxMin) {
       const match = race[R.HORSES].some(h => {
@@ -415,7 +453,7 @@ function render(horseName, idxMin) {
     const id = race[R.ID];
     html += `<div class="race-card" id="race-${id}">`;
     html += `<div class="race-header" onclick="toggle('${id}')">`;
-    html += `<div><div class="race-title">${race[R.VENUE]} ${race[R.DIST]}m ${race[R.CLASS]}</div>`;
+    html += `<div><div class="race-title">${race[R.VENUE]} ${race[R.SURFACE]}${race[R.DIST]}m ${race[R.CLASS]}</div>`;
     const d = race[R.DATE];
     const dateDisp = d ? `${d.substring(0,4)}/${d.substring(4,6)}/${d.substring(6,8)}` : `${race[R.YEAR]}年`;
     const rNum = race[R.RACENUM] ? `${race[R.RACENUM]}R` : '';
@@ -749,9 +787,10 @@ async function showHorseDetail(name) {
     const dd = race[R.DATE];
     const dateStr = dd ? `${dd.substring(0,4)}/${dd.substring(4,6)}/${dd.substring(6,8)}` : `${race[R.YEAR]}`;
     const raceId = race[R.ID];
+    const surfShort = race[R.SURFACE] === 'ダート' ? 'ダ' : '芝';
     html += `<td><span class="horse-link" onclick="showRaceDetail('${raceId}')">${dateStr}</span></td>`;
     html += `<td>${race[R.VENUE]}</td>`;
-    html += `<td>${race[R.DIST]}m</td>`;
+    html += `<td>${surfShort}${race[R.DIST]}m</td>`;
     html += `<td style="text-align:left;font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis">${race[R.CLASS]}</td>`;
     html += `<td>${race[R.COND]}</td>`;
     html += `<td>${horse[H.WEIGHT]}</td>`;
@@ -837,6 +876,7 @@ document.getElementById('horse-search').addEventListener('input', onFilterChange
 document.getElementById('idx-min').addEventListener('input', onFilterChange);
 document.getElementById('venue-filter').addEventListener('change', applyFilters);
 document.getElementById('dist-filter').addEventListener('change', applyFilters);
+document.getElementById('dist-min').addEventListener('input', onFilterChange);
 document.getElementById('class-filter').addEventListener('change', applyFilters);
 document.getElementById('year-filter').addEventListener('change', onYearChange);
 document.getElementById('date-filter').addEventListener('change', onDateChange);
