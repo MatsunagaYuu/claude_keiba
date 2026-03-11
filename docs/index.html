@@ -139,6 +139,30 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
 .surface-toggle button:first-child { border-radius: 4px 0 0 4px; }
 .surface-toggle button:last-child { border-radius: 0 4px 4px 0; border-left: none; }
 .surface-toggle button.active { background: #1a5c2a; color: #fff; border-color: #1a5c2a; }
+
+/* レスポンシブ対応 */
+@media (max-width: 640px) {
+  body { font-size: 13px; }
+  .header { padding: 8px 12px; }
+  .header h1 { font-size: 14px; }
+  .tab-btn { padding: 8px 4px; font-size: 12px; }
+  .filters { padding: 6px 10px; }
+  .filter-row { gap: 4px; }
+  .filter-row input, .filter-row select { padding: 5px 6px; font-size: 13px; }
+  .race-list { padding: 4px; }
+  .race-card { margin-bottom: 6px; }
+  .race-header { padding: 8px 10px; }
+  .race-title { font-size: 12px; }
+  .race-meta { font-size: 10px; }
+  .horse-table { font-size: 11px; }
+  .horse-table th, .horse-table td { padding: 3px 4px; }
+  .race-menu { grid-template-columns: repeat(4, 1fr); }
+  .past-race { min-width: 68px; font-size: 8px; padding: 2px 3px; }
+  .past-race .pr-idx { font-size: 10px; }
+  .horse-detail-header { padding: 8px 10px; gap: 8px; }
+  .horse-detail-name { font-size: 14px; }
+  .horse-detail-body { padding: 4px; }
+}
 </style>
 </head>
 <body>
@@ -216,7 +240,7 @@ const H = { RANK:0, GATE:1, NUM:2, NAME:3, AGE:4, WEIGHT:5, JOCKEY:6, TIME:7, MA
 // 出馬表用インデックス
 const SR = { ID:0, VENUE:1, RACENUM:2, CLASS:3, SURFACE:4, DIST:5, HORSES:6 };
 const SH = { GATE:0, NUM:1, NAME:2, AGE:3, WEIGHT:4, JOCKEY:5, PAST:6 };
-const SP = { DATE:0, VENUE:1, DIST:2, SURFACE:3, COND:4, RANK:5, TOTAL:6, ABILITY:7, BABA_SPEED:8, TIME:9, LAST3F:10, RACE_ID:11 };
+const SP = { DATE:0, VENUE:1, DIST:2, SURFACE:3, COND:4, RANK:5, TOTAL:6, ABILITY:7, BABA_SPEED:8, TIME:9, LAST3F:10, RACE_ID:11, PASSING:12 };
 
 let allRaces = [];
 let filtered = [];
@@ -656,9 +680,11 @@ function buildPastRaces(pastRaces) {
     } else {
       html += `<div class="pr-info">${dateStr} ${venue}</div>`;
     }
+    const passing = p[SP.PASSING] || '';
     html += `<div class="pr-info">${surfDisp}${p[SP.DIST]} ${baba}</div>`;
     html += `<div class="pr-time">${time}</div>`;
     html += `<div class="pr-time">上${last3f}</div>`;
+    if (passing) html += `<div class="pr-info">${passing}</div>`;
     html += `</div>`;
   }
   html += '</div>';
@@ -780,7 +806,7 @@ async function showHorseDetail(name) {
   detailStats.textContent = `${results.length}戦${wins}勝 / 能力指数 最高${maxAbility} 平均${avgAbility}`;
 
   let html = '<div class="table-wrap"><table class="horse-table">';
-  html += '<tr><th>日付</th><th>場</th><th>距離</th><th>クラス</th><th>馬場</th><th>斤量</th><th>着</th><th>タイム</th><th>上り</th><th>通過</th><th>総合</th><th>上指</th><th>能力</th></tr>';
+  html += '<tr><th>日付</th><th>場</th><th>距離</th><th>クラス</th><th>馬場</th><th>馬場差</th><th>斤量</th><th>着</th><th>タイム</th><th>上り</th><th>通過</th><th>総合</th><th>上指</th><th>能力</th></tr>';
 
   for (const { race, horse } of results) {
     html += '<tr>';
@@ -793,6 +819,8 @@ async function showHorseDetail(name) {
     html += `<td>${surfShort}${race[R.DIST]}m</td>`;
     html += `<td style="text-align:left;font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis">${race[R.CLASS]}</td>`;
     html += `<td>${race[R.COND]}</td>`;
+    const bSpd = race[R.BABA_SPEED] || '';
+    html += `<td style="font-size:10px;white-space:nowrap">${bSpd}</td>`;
     html += `<td>${horse[H.WEIGHT]}</td>`;
     html += `<td>${horse[H.RANK]}</td>`;
     html += `<td>${horse[H.TIME]}</td>`;
