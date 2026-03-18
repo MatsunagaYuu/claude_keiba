@@ -1,6 +1,7 @@
 const cheerio = require("cheerio");
 const https = require("https");
 const fs = require("fs");
+const path = require("path");
 const { execSync } = require("child_process");
 
 function fetchHTML(raceId) {
@@ -105,7 +106,7 @@ function scrapeRaceResult(raceId) {
     csvLines.push(line.join(","));
   }
 
-  const outputPath = "./race_result/";
+  const outputPath = path.join(__dirname, "..", "race_result") + "/";
   const outputFile = `${outputPath}result_${raceId}.csv`;
   fs.writeFileSync(outputFile, csvLines.join("\n"), "utf-8");
   console.log(`Saved: ${outputFile} (${rows.length} rows)`);

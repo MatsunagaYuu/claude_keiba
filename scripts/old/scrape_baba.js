@@ -13,8 +13,16 @@ function zenToHan(str) {
 }
 
 const VENUES = {
+  sapporo: "札幌",
+  hakodate: "函館",
+  fukushima: "福島",
+  niigata: "新潟",
   tokyo: "東京",
   nakayama: "中山",
+  chukyo: "中京",
+  kyoto: "京都",
+  hanshin: "阪神",
+  kokura: "小倉"
 };
 
 // 年・競馬場・開催の組み合わせでPDFをダウンロード・パース
@@ -115,6 +123,8 @@ function parse2025Format(items, year, venue, kai) {
     const cushionItem = rowItems.find((i) => i.x > 450 && i.x < 520 && /^\d+\.?\d*$/.test(i.str));
     const moistGoalItem = rowItems.find((i) => i.x > 600 && i.x < 660 && /^\d+\.?\d*$/.test(i.str));
     const moistCornerItem = rowItems.find((i) => i.x > 680 && i.x < 740 && /^\d+\.?\d*$/.test(i.str));
+    const dirtMoistGoalItem = rowItems.find((i) => i.x > 770 && i.x < 830 && /^\d+\.?\d*$/.test(i.str));
+    const dirtMoistCornerItem = rowItems.find((i) => i.x > 845 && i.x < 900 && /^\d+\.?\d*$/.test(i.str));
 
     const dateStr = dateItem ? dateItem.str : "";
     const monthMatch = dateStr.match(/(\d+)月\s*(\d+)日/);
@@ -131,6 +141,8 @@ function parse2025Format(items, year, venue, kai) {
       クッション値: cushionItem ? parseFloat(cushionItem.str) : null,
       芝含水率ゴール前: moistGoalItem ? parseFloat(moistGoalItem.str) : null,
       芝含水率4コーナー: moistCornerItem ? parseFloat(moistCornerItem.str) : null,
+      ダート含水率ゴール前: dirtMoistGoalItem ? parseFloat(dirtMoistGoalItem.str) : null,
+      ダート含水率4コーナー: dirtMoistCornerItem ? parseFloat(dirtMoistCornerItem.str) : null,
     });
   }
 
@@ -245,6 +257,19 @@ function parseLegacyFormat(items, year, venue, kai) {
           (j) => j.str.includes("芝コース含水率") && Math.abs(j.y - i.y) < 27
         )
     );
+    // ダートコース含水率ゴール前行
+    const dirtMoistGoalLabel = blockItems.find(
+      (i) => i.str === "ゴール前" && blockItems.some(
+        (j) => j.str.includes("ダートコース含水率") && Math.abs(j.y - i.y) < 5
+      )
+    );
+    // ダートコース含水率4コーナー行（ダートラベルより下=y値が小さい方向に検索）
+    const dirtMoistCornerLabel = blockItems.find(
+      (i) => /^[４4]コーナー$/.test(i.str) &&
+        blockItems.some(
+          (j) => j.str.includes("ダートコース含水率") && i.y < j.y && (j.y - i.y) < 27
+        )
+    );
 
     // 列のx座標: 金≈279-325, 土≈337-380, 日≈388-445
     // 旧形式(2019)は少しずれる: 金≈293, 土≈351, 日≈409
@@ -284,6 +309,12 @@ function parseLegacyFormat(items, year, venue, kai) {
       const moistCorner = moistCornerLabel
         ? getValueAt(moistCornerLabel.y, col.xMin, col.xMax)
         : null;
+      const dirtMoistGoal = dirtMoistGoalLabel
+        ? getValueAt(dirtMoistGoalLabel.y, col.xMin, col.xMax)
+        : null;
+      const dirtMoistCorner = dirtMoistCornerLabel
+        ? getValueAt(dirtMoistCornerLabel.y, col.xMin, col.xMax)
+        : null;
 
       records.push({
         年: year,
@@ -294,6 +325,8 @@ function parseLegacyFormat(items, year, venue, kai) {
         クッション値: cushion,
         芝含水率ゴール前: moistGoal,
         芝含水率4コーナー: moistCorner,
+        ダート含水率ゴール前: dirtMoistGoal,
+        ダート含水率4コーナー: dirtMoistCorner,
       });
     }
   }

@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const RACE_RESULT_DIR = "./race_result";
+const RACE_RESULT_DIR = path.join(__dirname, "..", "race_result");
 const babaData = JSON.parse(fs.readFileSync("./baba_data.json", "utf-8"));
 
 // 馬場データのキーマップ: "競馬場_開催_日次" → record
@@ -33,7 +33,7 @@ function classifyRace(className) {
 
 // 基準タイム（良馬場のみ、クラス別の平均タイム）を用意
 // レースごとの走破タイム偏差 = 勝ち馬のタイム - 基準タイム
-const baseTimes = JSON.parse(fs.readFileSync("./base_times.json", "utf-8"));
+const baseTimes = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "base_times.json"), "utf-8"));
 const baseMap = {};
 for (const bt of baseTimes) {
   // 良馬場の基準だけ使う（馬場速度の影響を測るため）

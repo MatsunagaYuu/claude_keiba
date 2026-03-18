@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const { scrapeRaceResult } = require("./scraper");
 
-const RACE_RESULT_DIR = "./race_result";
+const RACE_RESULT_DIR = path.join(__dirname, "..", "race_result");
 const DELAY_MS = 2000;
 
 function sleep(ms) {

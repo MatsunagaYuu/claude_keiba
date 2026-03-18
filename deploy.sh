@@ -4,9 +4,9 @@ set -e
 cd "$(dirname "$0")"
 
 echo "=== ビューアデータビルド ==="
-node build_baba_diff.js
-node build_viewer_data.js
-node build_shutuba_data.js
+node scripts/build_baba_diff.js
+node scripts/build_viewer_data.js
+node scripts/build_shutuba_data.js
 cp base_times.json docs/
 
 echo ""

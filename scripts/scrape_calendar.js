@@ -1,7 +1,8 @@
 const fs = require("fs");
+const path = require("path");
 const { execSync } = require("child_process");
 
-const OUTPUT_FILE = "./kaisai_calendar.json";
+const OUTPUT_FILE = path.join(__dirname, "..", "kaisai_calendar.json");
 const DELAY_MS = 500;
 
 function sleep(ms) {

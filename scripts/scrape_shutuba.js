@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const { execSync } = require("child_process");
 
-const OUTPUT_DIR = "./shutuba";
+const OUTPUT_DIR = path.join(__dirname, "..", "shutuba");
 const DELAY_MS = 500;
 
 function sleep(ms) {

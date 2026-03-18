@@ -1,3 +1,10 @@
 node_modules/
 race_result/
 race_index/
+race_index_naisei/
+race_index_old/
+shutuba/
+reference/
+external_baba_diff_backup.json
+external_baba_diff_backup_v2.json
+.claude/settings.local.json
