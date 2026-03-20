@@ -557,7 +557,12 @@ async function loadShutubaMeta() {
       return;
     }
 
-    // 最新日付を選択してロード
+    // 今日以降で最も近い日付を選択、なければ最新日付
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const nearest = shutubaMeta.find(m => m.date >= today);
+    dateEl.value = nearest ? nearest.date : shutubaMeta[shutubaMeta.length - 1].date;
+
+    // 選択日付をロード
     await onShutubaDateChange();
   } catch (e) {
     document.getElementById('race-list').innerHTML = '<div class="loading">出馬表データなし</div>';
