@@ -3,6 +3,7 @@ const path = require("path");
 
 const BASE_TIMES_FILE = "./base_times.json";
 const BABA_DIFF_FILE = "./baba_diff.json";
+const GRADE_FILE = "./grade_master.csv";
 const RACE_RESULT_DIR = "./race_result";
 const OUTPUT_DIR = "./race_index";
 
@@ -105,6 +106,16 @@ function main() {
     babaMap[key] = bd;
   }
 
+  // グレード: キー "年_競馬場名_開催回_開催日数_レース番号"
+  const gradeMap = {};
+  if (fs.existsSync(GRADE_FILE)) {
+    const gradeRows = parseCSV(fs.readFileSync(GRADE_FILE, "utf-8"));
+    for (const gr of gradeRows) {
+      const key = `${gr.nen}_${gr.keibajo_name}_${parseInt(gr.kaisai_kai)}_${parseInt(gr.kaisai_nichime)}_${parseInt(gr.race_bango)}`;
+      gradeMap[key] = gr.grade;
+    }
+  }
+
   if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR);
 
   const raceId = process.argv[2];
@@ -161,6 +172,9 @@ function main() {
     const year = rid.substring(0, 4);
     const kaiNum = parseInt(kaisai.replace("回", ""));
     const dayNum = parseInt(nichime.replace("日目", ""));
+    const raceBango = parseInt(rid.substring(10, 12));
+    const gradeKey = `${year}_${venue}_${kaiNum}_${dayNum}_${raceBango}`;
+    const grade = gradeMap[gradeKey] || "";
     const babaKey = `${surface}_${year}_${venue}_${kaiNum}_${dayNum}`;
     const bd = babaMap[babaKey];
     // 馬場差を当該距離に変換（baba_diffは2000m換算）
@@ -185,7 +199,7 @@ function main() {
     const indexedRows = [];
     for (const row of rows) {
       if (!/^\d+$/.test(row["着順"])) {
-        indexedRows.push({ ...row, 総合指数: "", 上がり指数: "", 能力指数: "" });
+        indexedRows.push({ ...row, グレード: grade, 総合指数: "", 上がり指数: "", 能力指数: "" });
         continue;
       }
 
@@ -229,6 +243,7 @@ function main() {
 
       indexedRows.push({
         ...row,
+        グレード: grade,
         総合指数: String(totalIdx),
         上がり指数: String(last3fIdx),
         能力指数: String(abilityIdx),
@@ -237,7 +252,7 @@ function main() {
 
     // CSV出力
     const headers = [
-      "競馬場名", "開催", "開催日", "クラス", "芝/ダート", "距離", "天候", "馬場",
+      "競馬場名", "開催", "開催日", "クラス", "グレード", "芝/ダート", "距離", "天候", "馬場",
       "着順", "枠番", "馬番", "馬名", "性齢", "斤量", "騎手",
       "タイム", "着差", "通過", "上がり", "人気", "単勝オッズ",
       "総合指数", "上がり指数", "能力指数",
