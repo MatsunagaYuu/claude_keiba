@@ -40,6 +40,10 @@ echo "=== 馬場差再計算 ==="
 node scripts/build_baba_diff.js
 
 echo ""
+echo "=== 外部馬場差取得 ==="
+node scripts/scrape_external_baba.js "$YEAR"
+
+echo ""
 echo "=== 指数算出 ==="
 node scripts/calc_index.js
 

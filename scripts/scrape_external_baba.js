@@ -264,15 +264,15 @@ function scrapeRaceBaba(year, dateStr, jyoCode) {
 }
 
 function main() {
-  const yearStart = parseInt(process.argv[2]) || 2019;
-  const yearEnd = parseInt(process.argv[3]) || 2025;
-  const allData = [];
+  const yearStart = parseInt(process.argv[2]) || new Date().getFullYear();
+  const yearEnd = parseInt(process.argv[3]) || yearStart;
+  const newData = [];
 
   for (let year = yearStart; year <= yearEnd; year++) {
     for (const [code, name] of Object.entries(VENUES)) {
       process.stdout.write(`${year} ${name}...`);
       const records = scrapeVenueYear(year, code, name);
-      allData.push(...records);
+      newData.push(...records);
       console.log(` ${records.length} days`);
       sleep(2000);
     }
@@ -280,7 +280,7 @@ function main() {
 
   // 変動ありの開催日にレース別馬場差を取得
   let raceBabaCount = 0;
-  for (const record of allData) {
+  for (const record of newData) {
     const hasVariation = record.芝馬場差変動前 !== null || record.ダート馬場差変動前 !== null;
     if (!hasVariation) continue;
 
@@ -299,6 +299,14 @@ function main() {
     }
   }
   console.log(`Race baba fetched: ${raceBabaCount} days`);
+
+  // 既存データを読み込み、取得対象年を除いてマージ
+  let existing = [];
+  if (fs.existsSync(OUTPUT_FILE)) {
+    existing = JSON.parse(fs.readFileSync(OUTPUT_FILE, "utf-8"));
+    existing = existing.filter((r) => r.年 < yearStart || r.年 > yearEnd);
+  }
+  const allData = [...existing, ...newData];
 
   // 日付ソート
   allData.sort((a, b) => a.日付.localeCompare(b.日付) || a.競馬場.localeCompare(b.競馬場));

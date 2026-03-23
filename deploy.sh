@@ -21,7 +21,7 @@ if git diff --cached --quiet; then
 fi
 
 git commit -m "ビューアデータ更新 $(date +%Y%m%d)"
-git push
+git push origin HEAD:main
 
 echo ""
 echo "=== デプロイ完了 ==="
