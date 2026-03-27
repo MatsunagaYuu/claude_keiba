@@ -260,12 +260,12 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
 
 <script>
 const R = { ID:0, YEAR:1, VENUE:2, KAISAI:3, DAY:4, CLASS:5, SURFACE:6, DIST:7, WEATHER:8, COND:9, HORSES:10, DATE:11, RACENUM:12, BABA_SPEED:13, GRADE:14, RACE_NAME:15 };
-const H = { RANK:0, GATE:1, NUM:2, NAME:3, AGE:4, WEIGHT:5, JOCKEY:6, TIME:7, MARGIN:8, PASSING:9, LAST3F:10, POP:11, ODDS:12, TOTAL:13, LAST3F_IDX:14, ABILITY:15 };
+const H = { RANK:0, GATE:1, NUM:2, NAME:3, AGE:4, WEIGHT:5, JOCKEY:6, TIME:7, MARGIN:8, PASSING:9, LAST3F:10, POP:11, ODDS:12, TOTAL:13, LAST3F_IDX:14, ABILITY:15, REF:16 };
 
 // 出馬表用インデックス
 const SR = { ID:0, VENUE:1, RACENUM:2, CLASS:3, SURFACE:4, DIST:5, HORSES:6 };
 const SH = { GATE:0, NUM:1, NAME:2, AGE:3, WEIGHT:4, JOCKEY:5, PAST:6 };
-const SP = { DATE:0, VENUE:1, DIST:2, SURFACE:3, COND:4, RANK:5, TOTAL:6, ABILITY:7, BABA_SPEED:8, TIME:9, LAST3F:10, RACE_ID:11, PASSING:12 };
+const SP = { DATE:0, VENUE:1, DIST:2, SURFACE:3, COND:4, RANK:5, TOTAL:6, ABILITY:7, BABA_SPEED:8, TIME:9, LAST3F:10, RACE_ID:11, PASSING:12, REF:13 };
 
 let allRaces = [];
 let filtered = [];
@@ -702,8 +702,9 @@ function selectShutubaRace(id) {
 function buildPastRaces(pastRaces) {
   if (!pastRaces || pastRaces.length === 0) return '<span style="color:#999;font-size:11px">-</span>';
 
-  // 統計計算: 能力指数の平均とMAX
+  // 統計計算: 能力指数の平均とMAX（参考フラグ付き除外）
   const abilities = pastRaces
+    .filter(p => !p[SP.REF])
     .map(p => parseInt(p[SP.ABILITY]))
     .filter(v => !isNaN(v));
 
@@ -733,8 +734,9 @@ function buildPastRaces(pastRaces) {
     const raceId = p[SP.RACE_ID] || '';
     const rank = p[SP.RANK] || '';
 
-    html += `<div class="past-race">`;
-    html += `<div class="pr-idx ${cls}">${isNaN(ability) ? '-' : ability}</div>`;
+    const isRef = !!p[SP.REF];
+    html += `<div class="past-race"${isRef ? ' style="opacity:0.45"' : ''}>`;
+    html += `<div class="pr-idx ${cls}">${isNaN(ability) ? '-' : ability}${isRef ? '*' : ''}</div>`;
     html += `<div class="pr-rank">${rank}着</div>`;
     if (raceId && dateStr) {
       html += `<div class="pr-info"><a class="pr-link" href="?race=${raceId}" target="_blank" onclick="event.stopPropagation()">${dateStr} ${venue}</a></div>`;
@@ -861,7 +863,7 @@ async function showHorseDetail(name) {
     return;
   }
 
-  const abilities = results.map(r => parseInt(r.horse[H.ABILITY])).filter(v => !isNaN(v));
+  const abilities = results.filter(r => !r.horse[H.REF]).map(r => parseInt(r.horse[H.ABILITY])).filter(v => !isNaN(v));
   const maxAbility = abilities.length ? Math.max(...abilities) : '-';
   const avgAbility = abilities.length ? (abilities.reduce((a,b) => a + b, 0) / abilities.length).toFixed(1) : '-';
   const wins = results.filter(r => r.horse[H.RANK] === '1' || r.horse[H.RANK] === 1).length;
