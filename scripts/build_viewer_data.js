@@ -143,6 +143,8 @@ function main() {
       raceId, year, first["競馬場名"], first["開催"], first["開催日"],
       first["クラス"], first["芝/ダート"], first["距離"],
       first["天候"], first["馬場"], horses, date, raceNum, babaSpeed,
+      first["グレード"] || "",    // 14: GRADE
+      first["レース名"] || "",    // 15: RACE_NAME
     ];
 
     if (!byYear[year]) byYear[year] = [];

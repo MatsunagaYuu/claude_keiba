@@ -61,7 +61,8 @@ function scrapeRaceResult(raceId) {
     const getText = (idx) => $(tds[idx]).text().replace(/\s+/g, " ").trim();
 
     // 0:着順, 1:枠番, 2:馬番, 3:馬名, 4:性齢, 5:斤量, 6:騎手,
-    // 7:タイム, 8:着差, 10:通過, 11:上がり, 12:単勝オッズ, 13:人気
+    // 7:タイム, 8:着差, 14:通過, 15:上がり, 16:単勝オッズ, 17:人気
+    // ※ 9-13列目にタイム指数系列が追加されたため列番号を更新
     rows.push({
       着順: getText(0),
       枠番: getText(1),
@@ -72,10 +73,10 @@ function scrapeRaceResult(raceId) {
       騎手: getText(6),
       タイム: getText(7),
       着差: getText(8),
-      通過: getText(10),
-      上がり: getText(11),
-      単勝オッズ: getText(12),
-      人気: getText(13),
+      通過: getText(14),
+      上がり: getText(15),
+      単勝オッズ: getText(16),
+      人気: getText(17),
     });
   });
 

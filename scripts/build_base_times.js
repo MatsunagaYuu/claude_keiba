@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const RACE_RESULT_DIR = path.join(__dirname, "..", "race_result");
+const RACE_RESULT_DIR = path.join(__dirname, "..", "race_result_fromDB");
 const OUTPUT_FILE = path.join(__dirname, "..", "base_times.json");
 const EXT_BABA_FILE = path.join(__dirname, "..", "external_baba_diff.json");
 const CALENDAR_FILE = path.join(__dirname, "..", "kaisai_calendar.json");

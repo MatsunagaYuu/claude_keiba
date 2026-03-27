@@ -1,5 +1,6 @@
 node_modules/
 race_result/
+race_result_fromDB/
 race_index/
 race_index_naisei/
 race_index_old/
@@ -8,3 +9,12 @@ reference/
 external_baba_diff_backup.json
 external_baba_diff_backup_v2.json
 .claude/settings.local.json
+
+# DB接続情報含むファイル（パスワード・IPアドレス）
+scripts/db.js
+scripts/export_fromDB.js
+scripts/export_fromDB_test.js
+scripts/export_from_db.js
+
+# ドキュメント
+*.md

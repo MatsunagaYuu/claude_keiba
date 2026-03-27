@@ -7,7 +7,7 @@ const BASE_TIMES_FILE = path.join(__dirname, "..", "base_times.json");
 const BABA_DIFF_FILE = path.join(__dirname, "..", "baba_diff.json");
 const EXT_BABA_FILE = path.join(__dirname, "..", "external_baba_diff.json");
 const CALENDAR_FILE = path.join(__dirname, "..", "kaisai_calendar.json");
-const RACE_RESULT_DIR = path.join(__dirname, "..", "race_result");
+const RACE_RESULT_DIR = path.join(__dirname, "..", "race_result_fromDB");
 const OUTPUT_DIR = path.join(__dirname, "..", NAISEI_MODE ? "race_index_naisei" : "race_index");
 
 // 外部馬場差のダート基準距離（会場別）
@@ -371,7 +371,7 @@ function main() {
 
     // CSV出力
     const headers = [
-      "競馬場名", "開催", "開催日", "クラス", "芝/ダート", "距離", "天候", "馬場",
+      "競馬場名", "開催", "開催日", "クラス", "レース名", "グレード", "芝/ダート", "距離", "天候", "馬場",
       "着順", "枠番", "馬番", "馬名", "性齢", "斤量", "騎手",
       "タイム", "着差", "通過", "上がり", "人気", "単勝オッズ",
       "総合指数", "上がり指数", "能力指数", "参考",
