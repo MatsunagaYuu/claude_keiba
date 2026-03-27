@@ -145,6 +145,17 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
 .surface-toggle button:last-child { border-radius: 0 4px 4px 0; border-left: none; }
 .surface-toggle button.active { background: #1a5c2a; color: #fff; border-color: #1a5c2a; }
 
+/* グレードバッジ */
+.grade-badge {
+  display: inline-block; padding: 1px 4px; border-radius: 3px;
+  font-size: 10px; font-weight: 700; margin-left: 4px; vertical-align: middle;
+}
+.grade-g1 { background: #c62828; color: #fff; }
+.grade-g2 { background: #6a1b9a; color: #fff; }
+.grade-g3 { background: #2e7d32; color: #fff; }
+.grade-l  { background: #0d47a1; color: #fff; }
+.grade-op { background: #e65100; color: #fff; }
+
 /* レスポンシブ対応 */
 @media (max-width: 640px) {
   body { font-size: 13px; }
@@ -196,6 +207,15 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
       <select id="dist-filter"><option value="">距離</option></select>
       <input type="number" id="dist-min" placeholder="距離≥" style="width:70px;flex:0 0 70px;">
       <select id="class-filter"><option value="">クラス</option></select>
+      <select id="grade-filter">
+        <option value="">グレード</option>
+        <option value="重賞">重賞(G1-G3)</option>
+        <option value="G1">G1</option>
+        <option value="G2">G2</option>
+        <option value="G3">G3</option>
+        <option value="L">リステッド</option>
+        <option value="OP">OP特別</option>
+      </select>
       <select id="year-filter"><option value="">年</option></select>
     </div>
   </div>
@@ -239,7 +259,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
 </div>
 
 <script>
-const R = { ID:0, YEAR:1, VENUE:2, KAISAI:3, DAY:4, CLASS:5, SURFACE:6, DIST:7, WEATHER:8, COND:9, HORSES:10, DATE:11, RACENUM:12, BABA_SPEED:13 };
+const R = { ID:0, YEAR:1, VENUE:2, KAISAI:3, DAY:4, CLASS:5, SURFACE:6, DIST:7, WEATHER:8, COND:9, HORSES:10, DATE:11, RACENUM:12, BABA_SPEED:13, GRADE:14, RACE_NAME:15 };
 const H = { RANK:0, GATE:1, NUM:2, NAME:3, AGE:4, WEIGHT:5, JOCKEY:6, TIME:7, MARGIN:8, PASSING:9, LAST3F:10, POP:11, ODDS:12, TOTAL:13, LAST3F_IDX:14, ABILITY:15 };
 
 // 出馬表用インデックス
@@ -265,6 +285,13 @@ let selectedShutubaRace = null;
 // 基準タイム用
 let baseTimesData = null;
 let btSurface = '芝';
+
+function gradeBadge(grade) {
+  if (!grade) return '';
+  const cls = { G1: 'g1', G2: 'g2', G3: 'g3', L: 'l', OP: 'op' }[grade];
+  if (!cls) return '';
+  return `<span class="grade-badge grade-${cls}">${grade}</span>`;
+}
 
 function idxClass(v) {
   const n = parseInt(v);
@@ -420,6 +447,7 @@ function applyFilters() {
   const dist = document.getElementById('dist-filter').value;
   const distMin = parseInt(document.getElementById('dist-min').value) || 0;
   const cls = document.getElementById('class-filter').value;
+  const grade = document.getElementById('grade-filter').value;
   const dateVal = document.getElementById('date-filter').value;
   const dateStr = dateVal ? dateVal.replace(/-/g, '') : '';
 
@@ -435,6 +463,11 @@ function applyFilters() {
       if (classifyForFilter(race[R.CLASS]) < clsMinRank) return false;
     } else if (cls) {
       if (race[R.CLASS] !== cls) return false;
+    }
+    if (grade) {
+      const rg = race[R.GRADE] || '';
+      if (grade === '重賞') { if (!['G1','G2','G3'].includes(rg)) return false; }
+      else { if (rg !== grade) return false; }
     }
 
     if (horseName || idxMin) {
@@ -482,7 +515,9 @@ function render(horseName, idxMin) {
     const id = race[R.ID];
     html += `<div class="race-card" id="race-${id}">`;
     html += `<div class="race-header" onclick="toggle('${id}')">`;
-    html += `<div><div class="race-title">${race[R.VENUE]} ${race[R.SURFACE]}${race[R.DIST]}m ${race[R.CLASS]}</div>`;
+    const raceName = race[R.RACE_NAME] || '';
+    const raceGrade = race[R.GRADE] || '';
+    html += `<div><div class="race-title">${race[R.VENUE]} ${race[R.SURFACE]}${race[R.DIST]}m ${race[R.CLASS]}${raceName ? ' ' + raceName : ''}${gradeBadge(raceGrade)}</div>`;
     const d = race[R.DATE];
     const dateDisp = d ? `${d.substring(0,4)}/${d.substring(4,6)}/${d.substring(6,8)}` : `${race[R.YEAR]}年`;
     const rNum = race[R.RACENUM] ? `${race[R.RACENUM]}R` : '';
@@ -933,6 +968,7 @@ document.getElementById('venue-filter').addEventListener('change', applyFilters)
 document.getElementById('dist-filter').addEventListener('change', applyFilters);
 document.getElementById('dist-min').addEventListener('input', onFilterChange);
 document.getElementById('class-filter').addEventListener('change', applyFilters);
+document.getElementById('grade-filter').addEventListener('change', applyFilters);
 document.getElementById('year-filter').addEventListener('change', onYearChange);
 document.getElementById('date-filter').addEventListener('change', onDateChange);
 document.getElementById('shutuba-date-filter').addEventListener('change', onShutubaDateChange);
