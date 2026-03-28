@@ -85,11 +85,21 @@ function main() {
     const first = rows[0];
     const year = raceId.substring(0, 4);
 
-    // 日付逆引き
-    const kaisaiNum = parseInt((first["開催"] || "").replace("回", "")) || 0;
-    const dayNum = parseInt((first["開催日"] || "").replace("日目", "")) || 0;
-    const calKey = `${year}_${first["競馬場名"]}_${kaisaiNum}_${dayNum}`;
-    const date = dateMap[calKey] || "";
+    // 日付取得: CSV「日付」列優先 → dateMap逆引きフォールバック
+    let date = "";
+    const rawDate = first["日付"] || "";
+    if (rawDate) {
+      const parts = rawDate.split("/");
+      if (parts.length === 3) {
+        date = parts[0] + parts[1].padStart(2, "0") + parts[2].padStart(2, "0");
+      }
+    }
+    if (!date) {
+      const kaisaiNum = parseInt((first["開催"] || "").replace("回", "")) || 0;
+      const dayNum = parseInt((first["開催日"] || "").replace("日目", "")) || 0;
+      const calKey = `${year}_${first["競馬場名"]}_${kaisaiNum}_${dayNum}`;
+      date = dateMap[calKey] || "";
+    }
 
     // 馬場差ラベル（外部馬場差から距離別対応で生成）
     const surface = first["芝/ダート"] || "";
@@ -141,6 +151,7 @@ function main() {
         last3f: r["上がり"],
         babaSpeed,
         passing: r["通過"],
+        ref: r["参考"] || "",
       });
     }
   }
@@ -189,7 +200,7 @@ function main() {
       const history = horseHistory[name] || [];
       const past5 = history.slice(0, 5).map((h) => [
         h.date, h.venue, h.dist, h.surface, h.cond, h.rank, h.totalIdx, h.abilityIdx,
-        h.babaSpeed, h.time, h.last3f, h.raceId, h.passing,
+        h.babaSpeed, h.time, h.last3f, h.raceId, h.passing, h.ref || "",
       ]);
 
       horses.push([
