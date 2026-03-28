@@ -286,8 +286,10 @@ let selectedShutubaRace = null;
 let baseTimesData = null;
 let btSurface = '芝';
 
-function gradeBadge(grade) {
+function gradeBadge(grade, raceClass) {
   if (!grade) return '';
+  // OPバッジはクラスがOPの場合のみ表示（3勝/2勝クラスの特別戦は除外）
+  if (grade === 'OP' && raceClass && !raceClass.includes('OP')) return '';
   const cls = { G1: 'g1', G2: 'g2', G3: 'g3', L: 'l', OP: 'op' }[grade];
   if (!cls) return '';
   return `<span class="grade-badge grade-${cls}">${grade}</span>`;
@@ -467,6 +469,10 @@ function applyFilters() {
     if (grade) {
       const rg = race[R.GRADE] || '';
       if (grade === '重賞') { if (!['G1','G2','G3'].includes(rg)) return false; }
+      else if (grade === 'OP') {
+        // OPフィルタ: gradeがOPかつクラスもOP
+        if (rg !== 'OP' || !race[R.CLASS].includes('OP')) return false;
+      }
       else { if (rg !== grade) return false; }
     }
 
@@ -517,7 +523,7 @@ function render(horseName, idxMin) {
     html += `<div class="race-header" onclick="toggle('${id}')">`;
     const raceName = race[R.RACE_NAME] || '';
     const raceGrade = race[R.GRADE] || '';
-    html += `<div><div class="race-title">${race[R.VENUE]} ${race[R.SURFACE]}${race[R.DIST]}m ${race[R.CLASS]}${raceName ? ' ' + raceName : ''}${gradeBadge(raceGrade)}</div>`;
+    html += `<div><div class="race-title">${race[R.VENUE]} ${race[R.SURFACE]}${race[R.DIST]}m ${race[R.CLASS]}${raceName ? ' ' + raceName : ''}${gradeBadge(raceGrade, race[R.CLASS])}</div>`;
     const d = race[R.DATE];
     const dateDisp = d ? `${d.substring(0,4)}/${d.substring(4,6)}/${d.substring(6,8)}` : `${race[R.YEAR]}年`;
     const rNum = race[R.RACENUM] ? `${race[R.RACENUM]}R` : '';
