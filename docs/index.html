@@ -222,6 +222,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
         <option value="OP">OP特別</option>
       </select>
       <select id="year-filter"><option value="">年</option></select>
+      <select id="generation-filter"><option value="">世代</option></select>
     </div>
   </div>
 
@@ -279,6 +280,7 @@ let showCount = PAGE_SIZE;
 const yearCache = {};
 let metaData = [];
 let currentYear = '';
+let currentGeneration = '';
 let currentTab = 'result';
 
 // 出馬表用
@@ -421,6 +423,10 @@ async function onYearChange() {
   const list = document.getElementById('race-list');
   const statsEl = document.getElementById('stats');
 
+  // 世代フィルタをリセット
+  document.getElementById('generation-filter').value = '';
+  currentGeneration = '';
+
   if (!year) {
     allRaces = [];
     filtered = [];
@@ -444,6 +450,51 @@ async function onYearChange() {
     applyFilters();
   } catch (e) {
     list.innerHTML = '<div class="loading">読み込みエラー: ' + e.message + '</div>';
+  }
+}
+
+async function onGenerationChange() {
+  const gen = document.getElementById('generation-filter').value;
+  const list = document.getElementById('race-list');
+  const statsEl = document.getElementById('stats');
+
+  // 年フィルタをリセット
+  document.getElementById('year-filter').value = '';
+  currentYear = '';
+
+  if (!gen) {
+    allRaces = [];
+    filtered = [];
+    statsEl.textContent = '';
+    list.innerHTML = '<div class="loading">年を選択してください</div>';
+    return;
+  }
+
+  if (gen === currentGeneration) { applyFilters(); return; }
+
+  currentGeneration = gen;
+  list.innerHTML = '<div class="loading">読み込み中...</div>';
+  statsEl.textContent = '';
+
+  try {
+    const yr2 = String(parseInt(gen) + 2);
+    const yr3 = String(parseInt(gen) + 3);
+    const availYears = new Set(metaData.map(m => m.year));
+    const [data2, data3] = await Promise.all([
+      availYears.has(yr2) ? loadYear(yr2) : Promise.resolve([]),
+      availYears.has(yr3) ? loadYear(yr3) : Promise.resolve([]),
+    ]);
+    const races2 = data2.filter(r => r[R.CLASS].startsWith('2歳'));
+    const races3 = data3.filter(r => r[R.CLASS].startsWith('3歳'));
+    allRaces = [...races3, ...races2];
+    allRaces.sort((a, b) => (b[R.DATE] || '').localeCompare(a[R.DATE] || ''));
+    buildSubFilters();
+    applyFilters();
+  } catch (e) {
+    const div = document.createElement('div');
+    div.className = 'loading';
+    div.textContent = '読み込みエラー: ' + e.message;
+    list.replaceChildren(div);
   }
 }
 
@@ -986,6 +1037,7 @@ document.getElementById('dist-min').addEventListener('input', onFilterChange);
 document.getElementById('class-filter').addEventListener('change', applyFilters);
 document.getElementById('grade-filter').addEventListener('change', applyFilters);
 document.getElementById('year-filter').addEventListener('change', onYearChange);
+document.getElementById('generation-filter').addEventListener('change', onGenerationChange);
 document.getElementById('date-filter').addEventListener('change', onDateChange);
 document.getElementById('shutuba-date-filter').addEventListener('change', onShutubaDateChange);
 document.getElementById('bt-venue-filter').addEventListener('change', renderBaseTimes);
@@ -1002,6 +1054,31 @@ fetch('meta.json')
       o.textContent = m.year + '年 (' + m.count + ')';
       yearEl.appendChild(o);
     }
+
+    // 世代ドロップダウン構築（利用可能な年から逆算）
+    const genEl = document.getElementById('generation-filter');
+    const availableYears = new Set(meta.map(m => parseInt(m.year)));
+    const gens = new Set();
+    for (const y of availableYears) {
+      if (availableYears.has(y - 1)) gens.add(y - 2); // 2歳年yと3歳年y+1が両方ある世代
+    }
+    // 片方だけでも追加
+    for (const y of availableYears) {
+      gens.add(y - 2); // 2歳として走った年
+      gens.add(y - 3); // 3歳として走った年
+    }
+    [...gens].sort((a, b) => b - a).forEach(g => {
+      const yr2 = String(g + 2), yr3 = String(g + 3);
+      const has2 = availableYears.has(g + 2), has3 = availableYears.has(g + 3);
+      if (!has2 && !has3) return;
+      const label = has2 && has3 ? `${g}年生（${yr2}年2歳・${yr3}年3歳）`
+                  : has2 ? `${g}年生（${yr2}年2歳）`
+                  : `${g}年生（${yr3}年3歳）`;
+      const o = document.createElement('option');
+      o.value = g;
+      o.textContent = label;
+      genEl.appendChild(o);
+    });
 
     const params = new URLSearchParams(location.search);
     const horseName = params.get('horse');
