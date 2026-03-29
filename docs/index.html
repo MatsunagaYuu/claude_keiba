@@ -207,6 +207,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
       <select id="dist-filter"><option value="">距離</option></select>
       <input type="number" id="dist-min" placeholder="距離≥" style="width:70px;flex:0 0 70px;">
       <select id="class-filter"><option value="">クラス</option></select>
+      <select id="surface-filter">
+        <option value="">芝/ダート</option>
+        <option value="芝">芝</option>
+        <option value="ダート">ダート</option>
+      </select>
       <select id="grade-filter">
         <option value="">グレード</option>
         <option value="重賞">重賞(G1-G3)</option>
@@ -449,6 +454,7 @@ function applyFilters() {
   const dist = document.getElementById('dist-filter').value;
   const distMin = parseInt(document.getElementById('dist-min').value) || 0;
   const cls = document.getElementById('class-filter').value;
+  const surface = document.getElementById('surface-filter').value;
   const grade = document.getElementById('grade-filter').value;
   const dateVal = document.getElementById('date-filter').value;
   const dateStr = dateVal ? dateVal.replace(/-/g, '') : '';
@@ -459,6 +465,7 @@ function applyFilters() {
   filtered = allRaces.filter(race => {
     if (dateStr && race[R.DATE] !== dateStr) return false;
     if (venue && race[R.VENUE] !== venue) return false;
+    if (surface && race[R.SURFACE] !== surface) return false;
     if (dist && race[R.DIST] !== dist) return false;
     if (distMin && parseInt(race[R.DIST]) < distMin) return false;
     if (clsMinRank) {
@@ -974,6 +981,7 @@ document.getElementById('horse-search').addEventListener('input', onFilterChange
 document.getElementById('idx-min').addEventListener('input', onFilterChange);
 document.getElementById('venue-filter').addEventListener('change', applyFilters);
 document.getElementById('dist-filter').addEventListener('change', applyFilters);
+document.getElementById('surface-filter').addEventListener('change', applyFilters);
 document.getElementById('dist-min').addEventListener('input', onFilterChange);
 document.getElementById('class-filter').addEventListener('change', applyFilters);
 document.getElementById('grade-filter').addEventListener('change', applyFilters);
