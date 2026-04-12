@@ -919,7 +919,7 @@ async function showHorseDetail(name) {
     }
   }
 
-  results.sort((a, b) => b.race[R.ID].localeCompare(a.race[R.ID]));
+  results.sort((a, b) => a.race[R.ID].localeCompare(b.race[R.ID]));
 
   if (results.length === 0) {
     detailStats.textContent = '該当レースなし';
