@@ -300,13 +300,19 @@ function main() {
   }
   console.log(`Race baba fetched: ${raceBabaCount} days`);
 
-  // 既存データを読み込み、取得対象年を除いてマージ
+  // 既存データを読み込み、対象年内の手動パッチ済みエントリ（baba.phpにない日）を保持してマージ
   let existing = [];
   if (fs.existsSync(OUTPUT_FILE)) {
     existing = JSON.parse(fs.readFileSync(OUTPUT_FILE, "utf-8"));
-    existing = existing.filter((r) => r.年 < yearStart || r.年 > yearEnd);
   }
-  const allData = [...existing, ...newData];
+  // スクレイプで取得できた日付+競馬場のセット
+  const newDataKeys = new Set(newData.map(r => `${r.日付}_${r.競馬場}`));
+  const allData = [
+    ...existing.filter(r => r.年 < yearStart || r.年 > yearEnd),
+    // 対象年のうちスクレイプに存在しないエントリ（パッチ済みなど）は保持
+    ...existing.filter(r => r.年 >= yearStart && r.年 <= yearEnd && !newDataKeys.has(`${r.日付}_${r.競馬場}`)),
+    ...newData,
+  ];
 
   // 日付ソート
   allData.sort((a, b) => a.日付.localeCompare(b.日付) || a.競馬場.localeCompare(b.競馬場));

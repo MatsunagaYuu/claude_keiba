@@ -7,8 +7,9 @@ const OUTPUT_DIR = path.join(__dirname, "..", "docs");
 const CALENDAR_FILE = path.join(__dirname, "..", "kaisai_calendar.json");
 const EXT_BABA_FILE = path.join(__dirname, "..", "external_baba_diff.json");
 
-const DIRT_BASE_DIST = { 東京: 1600, 札幌: 1700, 函館: 1700, 小倉: 1700 };
-const DIRT_DEFAULT_DIST = 1800;
+// 外部馬場差のダート距離スケーリング係数（回帰分析による）
+const DIRT_SCALE_A = 0.000425;
+const DIRT_SCALE_B = 0.352;
 
 function babaLabel(diff) {
   if (diff === null || diff === undefined) return "";
@@ -38,6 +39,12 @@ function parseCSV(content) {
 
 function main() {
   if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR);
+
+  // --date YYYYMMDD [...] フィルタ: 指定日付のみ出力（過去走読み込みは全件実施）
+  const dateArgIdx = process.argv.indexOf("--date");
+  const filterDates = new Set(dateArgIdx >= 0
+    ? process.argv.slice(dateArgIdx + 1).filter(a => /^\d{8}$/.test(a))
+    : []);
 
   // カレンダーデータから逆引きマップ構築
   const dateMap = {};
@@ -116,9 +123,8 @@ function main() {
           if (extRecord.ダート距離別馬場差 && extRecord.ダート距離別馬場差[dist]) {
             displayVals.push(extRecord.ダート距離別馬場差[dist]);
           } else if (extRecord.ダート馬場差 !== null) {
-            // 距離別がない場合、全体値で距離補正して表示
-            const baseDist = DIRT_BASE_DIST[first["競馬場名"]] || DIRT_DEFAULT_DIST;
-            displayVals.push(extRecord.ダート馬場差 * (dist / baseDist));
+            // 距離別がない場合、全体値で距離補正（回帰フィット係数）
+            displayVals.push(extRecord.ダート馬場差 * (DIRT_SCALE_A * dist + DIRT_SCALE_B));
           }
         } else {
           // 芝：常に距離補正
@@ -156,9 +162,17 @@ function main() {
     }
   }
 
-  // 各馬の過去走を日付降順でソート
+  // 各馬の過去走を日付降順でソート & (date, venue) 重複除去
+  // 同一レースが旧scraper形式と新DB形式の2つのraceIdで存在する場合の対策
   for (const name in horseHistory) {
     horseHistory[name].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+    const seen = new Set();
+    horseHistory[name] = horseHistory[name].filter((h) => {
+      const key = `${h.date}_${h.venue}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }
   console.log(`  Horses with history: ${Object.keys(horseHistory).length}`);
 
@@ -219,7 +233,9 @@ function main() {
   }
 
   // 各日付のレースをレース番号順でソート & 出力
-  const dates = Object.keys(byDate).sort().reverse();
+  const allDates = Object.keys(byDate).sort().reverse();
+  const dates = filterDates.size ? allDates.filter(d => filterDates.has(d)) : allDates;
+  if (filterDates.size) console.log(`Date filter [${[...filterDates].join(",")}]: ${dates.length}/${allDates.length} dates`);
   for (const date of dates) {
     byDate[date].sort((a, b) => {
       // venue then raceNum
@@ -232,12 +248,17 @@ function main() {
     console.log(`  ${date}: ${byDate[date].length} races (${sizeKB}KB)`);
   }
 
-  // メタファイル出力
-  const meta = dates.map((d) => ({
-    date: d,
-    count: byDate[d].length,
-  }));
+  // shutuba_meta.json: フィルタ時は既存ファイルとマージして全日付分を保持
   const metaFile = path.join(OUTPUT_DIR, "shutuba_meta.json");
+  let meta;
+  if (filterDates.size && fs.existsSync(metaFile)) {
+    const existing = JSON.parse(fs.readFileSync(metaFile, "utf-8"));
+    const metaMap = new Map(existing.map(e => [e.date, e]));
+    for (const d of dates) metaMap.set(d, { date: d, count: byDate[d].length });
+    meta = [...metaMap.keys()].sort().reverse().map(d => metaMap.get(d));
+  } else {
+    meta = allDates.map(d => ({ date: d, count: byDate[d].length }));
+  }
   fs.writeFileSync(metaFile, JSON.stringify(meta), "utf-8");
   console.log(`\nSaved: ${dates.length} date files + shutuba_meta.json`);
 }

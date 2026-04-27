@@ -26,8 +26,8 @@ for DATE in $DATES; do
 done
 
 echo ""
-echo "=== ビューアデータ生成 ==="
-node scripts/build_shutuba_data.js
+echo "=== ビューアデータ生成 (対象日: $DATES) ==="
+node scripts/build_shutuba_data.js --date $DATES
 
 echo ""
 echo "=== デプロイ ==="

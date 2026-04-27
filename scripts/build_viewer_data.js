@@ -6,8 +6,9 @@ const OUTPUT_DIR = path.join(__dirname, "..", "docs");
 const CALENDAR_FILE = path.join(__dirname, "..", "kaisai_calendar.json");
 const EXT_BABA_FILE = path.join(__dirname, "..", "external_baba_diff.json");
 
-const DIRT_BASE_DIST = { 東京: 1600, 札幌: 1700, 函館: 1700, 小倉: 1700 };
-const DIRT_DEFAULT_DIST = 1800;
+// 外部馬場差のダート距離スケーリング係数（回帰分析による）
+const DIRT_SCALE_A = 0.000425;
+const DIRT_SCALE_B = 0.352;
 
 // 馬場差 → 速度ラベル（2000m換算基準）
 function babaLabel(diff) {
@@ -69,8 +70,16 @@ function main() {
     console.log(`ExtBabaDiff: ${Object.keys(extBabaMap).length} entries`);
   }
 
-  const files = fs.readdirSync(INDEX_DIR).filter((f) => f.endsWith(".csv"));
-  console.log(`Index files: ${files.length}`);
+  // --year YYYY [...] フィルタ: 指定年のファイルのみ処理
+  const yearArgIdx = process.argv.indexOf("--year");
+  const filterYears = new Set(yearArgIdx >= 0
+    ? process.argv.slice(yearArgIdx + 1).filter(a => /^\d{4}$/.test(a))
+    : []);
+
+  const files = fs.readdirSync(INDEX_DIR)
+    .filter(f => f.endsWith(".csv"))
+    .filter(f => !filterYears.size || filterYears.has(f.slice(6, 10)));
+  console.log(`Index files: ${files.length}${filterYears.size ? ` (year filter: ${[...filterYears].join(",")})` : ""}`);
 
   // 年ごとにグループ化
   const byYear = {};
@@ -123,9 +132,8 @@ function main() {
           if (extRecord.ダート距離別馬場差 && extRecord.ダート距離別馬場差[dist]) {
             displayVals.push(extRecord.ダート距離別馬場差[dist]);
           } else if (extRecord.ダート馬場差 !== null) {
-            // 距離別がない場合、全体値で距離補正して表示
-            const baseDist = DIRT_BASE_DIST[first["競馬場名"]] || DIRT_DEFAULT_DIST;
-            displayVals.push(extRecord.ダート馬場差 * (dist / baseDist));
+            // 距離別がない場合、全体値で距離補正（回帰フィット係数）
+            displayVals.push(extRecord.ダート馬場差 * (DIRT_SCALE_A * dist + DIRT_SCALE_B));
           }
         } else {
           // 芝：常に距離補正
@@ -167,9 +175,18 @@ function main() {
     console.log(`  ${year}: ${byYear[year].length} races (${sizeMB}MB)`);
   }
 
-  // 年リストのメタファイル
-  const meta = years.map(y => ({ year: y, count: byYear[y].length }));
-  fs.writeFileSync(path.join(OUTPUT_DIR, "meta.json"), JSON.stringify(meta), "utf-8");
+  // meta.json: フィルタ時は既存ファイルとマージして全年分を保持
+  const metaFile = path.join(OUTPUT_DIR, "meta.json");
+  let meta;
+  if (filterYears.size && fs.existsSync(metaFile)) {
+    const existing = JSON.parse(fs.readFileSync(metaFile, "utf-8"));
+    const metaMap = new Map(existing.map(e => [e.year, e]));
+    for (const y of years) metaMap.set(y, { year: y, count: byYear[y].length });
+    meta = [...metaMap.keys()].sort().reverse().map(y => metaMap.get(y));
+  } else {
+    meta = years.map(y => ({ year: y, count: byYear[y].length }));
+  }
+  fs.writeFileSync(metaFile, JSON.stringify(meta), "utf-8");
   console.log(`\nSaved: ${years.length} year files + meta.json`);
 }
 

@@ -1,9 +1,9 @@
 #!/bin/bash
-# レース結果バッチ: 結果取得 → カレンダー更新 → 基準タイム → 馬場差 → 指数 → ビューア → デプロイ
-# Usage: ./batch_result.sh [日付...]
-#   引数なし: 直近の過去開催日をカレンダーから自動特定
-#   引数あり: 指定日付の結果を取得
-#   例: ./batch_result.sh 20260228 20260301
+# レース結果バッチ: DBエクスポート → カレンダー更新 → 基準タイム → 外部馬場差 → 指数 → ビューア → デプロイ
+# Usage: ./batch_result.sh [YYYYMMDD ...]
+#   引数なし: 直近開催日を自動特定（get_next_dates.js --last）
+#   引数あり: 指定日付のデータのみ処理（指数・ビューア更新を絞り込み）
+#   例: ./batch_result.sh 20260404 20260405
 set -e
 cd "$(dirname "$0")"
 
@@ -12,44 +12,50 @@ YEAR=$(date +%Y)
 if [ $# -gt 0 ]; then
   DATES="$@"
 else
-  echo "=== 直近の過去開催日を自動特定 ==="
-  DATES=$(node scripts/get_next_dates.js --last)
+  echo "=== 直近開催日を自動特定 ==="
+  DATES=$(node scripts/get_next_dates.js --last | tr '\n' ' ')
   if [ -z "$DATES" ]; then
-    echo "ERROR: 過去開催日が見つかりません"
+    echo "ERROR: 開催日が見つかりません"
     exit 1
   fi
   echo "対象日: $DATES"
 fi
 
+# 日付から年を抽出（ユニーク・スペース区切り）
+YEARS=$(echo "$DATES" | tr ' ' '\n' | grep -E '^\d{8}$' | cut -c1-4 | sort -u | tr '\n' ' ')
+if [ -z "$YEARS" ]; then
+  YEARS="$YEAR"
+fi
+
 echo ""
-echo "=== レース結果取得 ==="
-for DATE in $DATES; do
-  node scripts/scrape_result_by_date.js "$DATE"
+echo "=== DBからレース結果エクスポート ==="
+for Y in $YEARS; do
+  node scripts/export_fromDB.js "$Y" --force
 done
 
 echo ""
 echo "=== カレンダー更新 ==="
-node scripts/scrape_calendar.js "$YEAR"
+for Y in $YEARS; do
+  node scripts/build_calendar_from_db.js "$Y"
+done
 
 echo ""
 echo "=== 基準タイム再計算 ==="
 node scripts/build_base_times.js
 
 echo ""
-echo "=== 馬場差再計算 ==="
-node scripts/build_baba_diff.js
-
-echo ""
 echo "=== 外部馬場差取得 ==="
-node scripts/scrape_external_baba.js "$YEAR"
+for Y in $YEARS; do
+  node scripts/scrape_external_baba.js "$Y"
+done
 
 echo ""
-echo "=== 指数算出 ==="
-node scripts/calc_index.js
+echo "=== 指数算出 (対象日: $DATES) ==="
+node scripts/calc_index.js --date $DATES
 
 echo ""
-echo "=== ビューアデータ更新 ==="
-node scripts/build_viewer_data.js
+echo "=== ビューアデータ更新 (対象年: $YEARS) ==="
+node scripts/build_viewer_data.js --year $YEARS
 
 echo ""
 echo "=== デプロイ ==="

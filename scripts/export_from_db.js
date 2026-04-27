@@ -7,7 +7,7 @@
  *   node scripts/export_from_db.js --force 2025 # 既存ファイルも上書き
  *
  * 環境変数:
- *   PGHOST   (default: 192.168.0.101)
+ *   PGHOST   (default: localhost)
  *   PGUSER   (default: postgres)
  *   PGPASSWORD
  *   PGDATABASE (default: mykeibadb)
@@ -21,7 +21,7 @@ const OUTPUT_DIR = path.join(__dirname, "..", "race_result");
 
 // --- 接続設定 ---
 const DB_CONFIG = {
-  host: process.env.PGHOST || "192.168.0.101",
+  host: process.env.PGHOST || "localhost",
   user: process.env.PGUSER || "postgres",
   password: process.env.PGPASSWORD,
   database: process.env.PGDATABASE || "mykeibadb",

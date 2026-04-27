@@ -7,14 +7,16 @@ const BASE_TIMES_FILE = path.join(__dirname, "..", "base_times.json");
 const BABA_DIFF_FILE = path.join(__dirname, "..", "baba_diff.json");
 const EXT_BABA_FILE = path.join(__dirname, "..", "external_baba_diff.json");
 const CALENDAR_FILE = path.join(__dirname, "..", "kaisai_calendar.json");
-const RACE_RESULT_DIR = path.join(__dirname, "..", "race_result_fromDB");
+// DBエクスポート（優先）とnetkeibaスクレイパー（フォールバック）の両方を参照
+// raceIdフォーマットはnetkeibaと共通（YYYY+venue+kai+day+race）
+const RACE_RESULT_DB_DIR = path.join(__dirname, "..", "race_result_fromDB");
+const RACE_RESULT_SCRAPER_DIR = path.join(__dirname, "..", "race_result");
 const OUTPUT_DIR = path.join(__dirname, "..", NAISEI_MODE ? "race_index_naisei" : "race_index");
 
-// 外部馬場差のダート基準距離（会場別）
-const DIRT_BASE_DIST = {
-  東京: 1600, 札幌: 1700, 函館: 1700, 小倉: 1700,
-};
-const DIRT_DEFAULT_DIST = 1800;
+// 外部馬場差のダート距離スケーリング係数（回帰分析による）
+// ratio = DIRT_SCALE_A * dist + DIRT_SCALE_B
+const DIRT_SCALE_A = 0.000425;
+const DIRT_SCALE_B = 0.352;
 
 // スケーリング: イクイノックス2023天皇賞秋キャリブレーション
 // 1:55.2, 東京芝2000m 3歳以上OP, 馬場差-2.1秒, 斤量58kg → 指数336
@@ -197,17 +199,75 @@ function main() {
 
   if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR);
 
-  const raceId = process.argv.filter(a => !a.startsWith("--"))[2];
-  let files;
+  // DB優先でファイルリストを構築: DB版 + スクレイパー版（DBにない分のみ）
+  const dbFiles = new Set(
+    fs.existsSync(RACE_RESULT_DB_DIR)
+      ? fs.readdirSync(RACE_RESULT_DB_DIR).filter((f) => f.endsWith(".csv"))
+      : []
+  );
+  // スクレイパーファイルのうち、DB優先かつ正規フォーマット（日付なし・グレードなし）のみ
+  // ヘッダーが "日付," 始まり → DB形式、"競馬場名," + グレードあり → 旧中間形式（除外）
+  const scraperFallback = fs.existsSync(RACE_RESULT_SCRAPER_DIR)
+    ? fs.readdirSync(RACE_RESULT_SCRAPER_DIR)
+        .filter((f) => f.endsWith(".csv") && !dbFiles.has(f))
+        .filter((f) => {
+          const h = fs.readFileSync(path.join(RACE_RESULT_SCRAPER_DIR, f), "utf-8").split("\n")[0] || "";
+          // 旧DB中間形式（競馬場名始まり＋グレードあり）を除外
+          return !(h.startsWith("競馬場名") && h.includes("グレード"));
+        })
+    : [];
+
+  // 単一raceId指定（12桁）または --date YYYYMMDD [...] によるフィルタ
+  const raceId = process.argv.find(a => !a.startsWith("--") && /^\d{12}$/.test(a));
+  const dateArgIdx = process.argv.indexOf("--date");
+  const filterDates = dateArgIdx >= 0
+    ? process.argv.slice(dateArgIdx + 1).filter(a => /^\d{8}$/.test(a))
+    : [];
+
+  let fileEntries; // { file, dir }
   if (raceId) {
     const fileName = `result_${raceId}.csv`;
-    if (!fs.existsSync(path.join(RACE_RESULT_DIR, fileName))) {
+    const dbPath = path.join(RACE_RESULT_DB_DIR, fileName);
+    const scraperPath = path.join(RACE_RESULT_SCRAPER_DIR, fileName);
+    if (fs.existsSync(dbPath)) {
+      fileEntries = [{ file: fileName, dir: RACE_RESULT_DB_DIR }];
+    } else if (fs.existsSync(scraperPath)) {
+      fileEntries = [{ file: fileName, dir: RACE_RESULT_SCRAPER_DIR }];
+    } else {
       console.error(`File not found: ${fileName}`);
       process.exit(1);
     }
-    files = [fileName];
   } else {
-    files = fs.readdirSync(RACE_RESULT_DIR).filter((f) => f.endsWith(".csv"));
+    fileEntries = [
+      ...[...dbFiles].map((f) => ({ file: f, dir: RACE_RESULT_DB_DIR })),
+      ...scraperFallback.map((f) => ({ file: f, dir: RACE_RESULT_SCRAPER_DIR })),
+    ];
+  }
+  console.log(`Input: DB=${dbFiles.size}, Scraper fallback=${scraperFallback.length}`);
+
+  // --date フィルタ: カレンダーからraceIdプレフィックスを生成して絞り込み
+  if (filterDates.length > 0 && !raceId) {
+    const VENUE_CODE_MAP = {
+      "札幌": "01", "函館": "02", "福島": "03", "新潟": "04", "東京": "05",
+      "中山": "06", "中京": "07", "京都": "08", "阪神": "09", "小倉": "10",
+    };
+    const cal = fs.existsSync(CALENDAR_FILE)
+      ? JSON.parse(fs.readFileSync(CALENDAR_FILE, "utf-8"))
+      : [];
+    const prefixes = new Set();
+    for (const date of filterDates) {
+      const entry = cal.find(e => e.date === date);
+      if (!entry) { console.warn(`Warning: Date not in calendar: ${date}`); continue; }
+      for (const v of entry.venues) {
+        const code = VENUE_CODE_MAP[v.venue];
+        if (code) {
+          prefixes.add(`${date.slice(0, 4)}${code}${String(v.kaisai).padStart(2, "0")}${String(v.day).padStart(2, "0")}`);
+        }
+      }
+    }
+    const before = fileEntries.length;
+    fileEntries = fileEntries.filter(({ file }) => prefixes.has(file.replace("result_", "").slice(0, 10)));
+    console.log(`Date filter [${filterDates.join(",")}]: ${fileEntries.length}/${before} files`);
   }
 
   let processed = 0;
@@ -215,8 +275,8 @@ function main() {
   let noBaba = 0;
   let btFallbackLogged = new Set();
 
-  for (const file of files) {
-    const content = fs.readFileSync(path.join(RACE_RESULT_DIR, file), "utf-8");
+  for (const { file, dir } of fileEntries) {
+    const content = fs.readFileSync(path.join(dir, file), "utf-8");
     const rows = parseCSV(content);
     if (rows.length === 0) { skipped++; continue; }
 
@@ -278,9 +338,8 @@ function main() {
             // 距離別がある場合、そのまま使用（既に距離補正済み）
             babaDiff = extRecord.ダート距離別馬場差[d];
           } else if (extRecord.ダート馬場差 !== null) {
-            // 距離別がない場合、全体値で距離補正
-            const baseDist = DIRT_BASE_DIST[venue] || DIRT_DEFAULT_DIST;
-            babaDiff = extRecord.ダート馬場差 * (d / baseDist);
+            // 距離別がない場合、全体値で距離補正（回帰フィット係数）
+            babaDiff = extRecord.ダート馬場差 * (DIRT_SCALE_A * d + DIRT_SCALE_B);
           }
         } else {
           // 芝：常に距離補正（2000m基準）
