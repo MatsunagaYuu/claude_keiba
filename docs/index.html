@@ -107,8 +107,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
 .stat-value { font-weight: bold; color: #2c5aa0; }
 .past-race {
   display: flex; flex-direction: column; align-items: center; font-size: 9px; line-height: 1.4;
-  border: 1px solid #e0e0e0; border-radius: 3px; padding: 2px 4px; min-width: 76px;
+  border: 1px solid #e0e0e0; border-radius: 3px; padding: 2px 4px; min-width: 90px;
 }
+.past-race .pr-rank-win { font-size: 9px; color: #c62828; }
+.past-race .pr-ref-horse { color: #1a5c2a; white-space: nowrap; }
 .past-race .pr-idx { font-weight: 700; font-size: 11px; }
 .past-race .pr-rank { font-size: 9px; color: #555; }
 .past-race .pr-info { color: #888; white-space: nowrap; }
@@ -173,7 +175,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
   .horse-table { font-size: 11px; }
   .horse-table th, .horse-table td { padding: 3px 4px; }
   .race-menu { grid-template-columns: repeat(4, 1fr); }
-  .past-race { min-width: 68px; font-size: 8px; padding: 2px 3px; }
+  .past-race { min-width: 82px; font-size: 8px; padding: 2px 3px; }
   .past-race .pr-idx { font-size: 10px; }
   .horse-detail-header { padding: 8px 10px; gap: 8px; }
   .horse-detail-name { font-size: 14px; }
@@ -271,7 +273,7 @@ const H = { RANK:0, GATE:1, NUM:2, NAME:3, AGE:4, WEIGHT:5, JOCKEY:6, TIME:7, MA
 // 出馬表用インデックス
 const SR = { ID:0, VENUE:1, RACENUM:2, CLASS:3, SURFACE:4, DIST:5, HORSES:6 };
 const SH = { GATE:0, NUM:1, NAME:2, AGE:3, WEIGHT:4, JOCKEY:5, PAST:6 };
-const SP = { DATE:0, VENUE:1, DIST:2, SURFACE:3, COND:4, RANK:5, TOTAL:6, ABILITY:7, BABA_SPEED:8, TIME:9, LAST3F:10, RACE_ID:11, PASSING:12, REF:13 };
+const SP = { DATE:0, VENUE:1, DIST:2, SURFACE:3, COND:4, RANK:5, TOTAL:6, ABILITY:7, BABA_SPEED:8, TIME:9, LAST3F:10, RACE_ID:11, PASSING:12, REF:13, JOCKEY:14, WEIGHT:15, GATE:16, POP:17, REF_HORSE:18, MARGIN:19 };
 
 let allRaces = [];
 let filtered = [];
@@ -799,18 +801,32 @@ function buildPastRaces(pastRaces) {
     const rank = p[SP.RANK] || '';
 
     const isRef = !!p[SP.REF];
+    const isWin = rank === '1';
+    const jockey  = p[SP.JOCKEY]   || '';
+    const weight  = p[SP.WEIGHT]   || '';
+    const gate    = p[SP.GATE]     || '';
+    const pop     = p[SP.POP]      || '';
+    const refHorse = p[SP.REF_HORSE] || '';
+    const margin   = p[SP.MARGIN]   || '';
+    const passing  = p[SP.PASSING]  || '';
+
     html += `<div class="past-race"${isRef ? ' style="opacity:0.45"' : ''}>`;
     html += `<div class="pr-idx ${cls}">${isNaN(ability) ? '-' : ability}${isRef ? '*' : ''}</div>`;
-    html += `<div class="pr-rank">${rank}着</div>`;
+    html += `<div class="${isWin ? 'pr-rank-win' : 'pr-rank'}">${rank}着</div>`;
+    if (refHorse) {
+      html += `<div class="pr-ref-horse">${refHorse}(${margin})</div>`;
+    }
     if (raceId && dateStr) {
       html += `<div class="pr-info"><a class="pr-link" href="?race=${raceId}" target="_blank" onclick="event.stopPropagation()">${dateStr} ${venue}</a></div>`;
     } else {
       html += `<div class="pr-info">${dateStr} ${venue}</div>`;
     }
-    const passing = p[SP.PASSING] || '';
-    html += `<div class="pr-info">${surfDisp}${p[SP.DIST]} ${baba}</div>`;
-    html += `<div class="pr-time">${time}</div>`;
-    html += `<div class="pr-time">上${last3f}</div>`;
+    html += `<div class="pr-info">${surfDisp}${p[SP.DIST]}${baba ? ' ' + baba : ''}</div>`;
+    html += `<div class="pr-time">${time}${last3f ? '(' + last3f + ')' : ''}</div>`;
+    if (jockey || weight || gate || pop) {
+      const jocParts = [jockey, weight ? weight : '', gate ? gate + '番' : '', pop ? pop + '人' : ''].filter(Boolean);
+      html += `<div class="pr-info">${jocParts.join(' ')}</div>`;
+    }
     if (passing) html += `<div class="pr-info">${passing}</div>`;
     html += `</div>`;
   }
