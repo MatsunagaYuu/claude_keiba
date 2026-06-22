@@ -4,6 +4,7 @@ const path = require("path");
 const { execSync } = require("child_process");
 
 const OUTPUT_DIR = path.join(__dirname, "..", "shutuba");
+const CALENDAR_FILE = path.join(__dirname, "..", "kaisai_calendar.json");
 const DELAY_MS = 500;
 
 function sleep(ms) {
@@ -42,7 +43,7 @@ function getRaceIds(kaisaiDate) {
 
 function scrapeShutuba(raceId) {
   const url = `https://race.netkeiba.com/race/shutuba.html?race_id=${raceId}`;
-  const html = fetchHTML(url, "euc-jp");
+  const html = fetchHTML(url);
   if (!html) return null;
 
   const $ = cheerio.load(html);
@@ -125,19 +126,71 @@ function toCSV(raceData) {
   return lines.join("\n") + "\n";
 }
 
+// kaisai_calendar.json から指定日付の開催会場セットを構築
+function loadExpectedVenues(kaisaiDate) {
+  if (!fs.existsSync(CALENDAR_FILE)) return null;
+  const calendar = JSON.parse(fs.readFileSync(CALENDAR_FILE, "utf-8"));
+  const entry = calendar.find(e => e.date === kaisaiDate);
+  if (!entry) return null;
+  // "競馬場名_開催回_日目数字" のセットを返す（例: "東京_1_3"）
+  const set = new Set();
+  for (const v of entry.venues) {
+    set.add(`${v.venue}_${v.kaisai}_${v.day}`);
+  }
+  return set;
+}
+
 function main() {
+  // --race-ids モード: 特定のrace_idを直接指定してスクレイピング
+  const raceIdsIdx = process.argv.indexOf("--race-ids");
+  if (raceIdsIdx >= 0) {
+    const raceIds = process.argv.slice(raceIdsIdx + 1).filter(a => /^\d{12}$/.test(a));
+    if (raceIds.length === 0) {
+      console.error("Usage: node scrape_shutuba.js --race-ids <raceId1> <raceId2> ...");
+      process.exit(1);
+    }
+    if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR);
+    let saved = 0;
+    for (const raceId of raceIds) {
+      sleep(DELAY_MS);
+      const data = scrapeShutuba(raceId);
+      if (!data || data.horses.length === 0) {
+        console.log(`  ${raceId}: (no data)`);
+        continue;
+      }
+      const csvFile = path.join(OUTPUT_DIR, `shutuba_${raceId}.csv`);
+      fs.writeFileSync(csvFile, toCSV(data), "utf-8");
+      console.log(`  ${raceId}: ${data.競馬場名} ${data.raceNum}R ${data.クラス} ${data["芝/ダート"]}${data.距離}m ${data.horses.length}頭`);
+      saved++;
+    }
+    console.log(`\nDone: ${saved} saved`);
+    return;
+  }
+
   const kaisaiDate = process.argv[2];
   if (!kaisaiDate) {
     console.error("Usage: node scrape_shutuba.js <kaisai_date>");
+    console.error("       node scrape_shutuba.js --race-ids <raceId1> ...");
     console.error("  e.g. node scrape_shutuba.js 20260221");
     process.exit(1);
   }
 
   if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR);
 
+  // カレンダーで当日の開催会場を確認
+  const expectedVenues = loadExpectedVenues(kaisaiDate);
+  if (!expectedVenues) {
+    console.warn(`WARNING: ${kaisaiDate} not found in kaisai_calendar.json. Race ID validation will be skipped.`);
+  } else {
+    console.log(`Expected venues: ${[...expectedVenues].join(", ")}`);
+  }
+
   console.log(`\n=== ${kaisaiDate} ===`);
   const raceIds = getRaceIds(kaisaiDate);
   console.log(`  Race IDs: ${raceIds.length}`);
+
+  let saved = 0;
+  let invalid = 0;
 
   for (const raceId of raceIds) {
     sleep(DELAY_MS);
@@ -147,12 +200,25 @@ function main() {
       continue;
     }
 
+    // カレンダーと照合してrace_idが正しい日付のものか検証
+    if (expectedVenues) {
+      const kaisaiN = parseInt((data.開催 || "").replace("回", "")) || 0;
+      const dayN = parseInt((data.開催日 || "").replace("日目", "")) || 0;
+      const venueKey = `${data.競馬場名}_${kaisaiN}_${dayN}`;
+      if (!expectedVenues.has(venueKey)) {
+        console.warn(`  ${raceId}: SKIP (venue mismatch: got "${venueKey}", not in expected set)`);
+        invalid++;
+        continue;
+      }
+    }
+
     const csvFile = path.join(OUTPUT_DIR, `shutuba_${raceId}.csv`);
     fs.writeFileSync(csvFile, toCSV(data), "utf-8");
     console.log(`  ${raceId}: ${data.競馬場名} ${data.raceNum}R ${data.クラス} ${data["芝/ダート"]}${data.距離}m ${data.horses.length}頭`);
+    saved++;
   }
 
-  console.log(`\nDone: ${raceIds.length} races saved to ${OUTPUT_DIR}/`);
+  console.log(`\nDone: ${saved} saved, ${invalid} skipped (invalid date)`);
 }
 
 main();

@@ -13,7 +13,8 @@ JRAの競馬レースデータをスクレイピングし、独自の総合指�
 │   ├── build_shutuba_data.js # 出馬表データ生成 → docs/shutuba_YYYYMMDD.json
 │   ├── horse_history.js      # 馬別過去走確認CLI
 │   ├── scraper.js            # レース結果スクレイパー（puppeteer）
-│   ├── scrape_calendar.js    # 開催カレンダー取得
+│   ├── build_calendar_from_db.js # 開催カレンダー生成（DB版、推奨）
+│   ├── scrape_calendar.js    # 開催カレンダー取得（スクレイピング版、非推奨）
 │   ├── scrape_external_baba.js # 外部馬場差取得（ittai.net）
 │   ├── scrape_result_by_date.js # 日付指定レース結果取得
 │   ├── scrape_shutuba.js     # 出馬表取得
@@ -48,6 +49,10 @@ JRAの競馬レースデータをスクレイピングし、独自の総合指�
 
 # 外部馬場差の更新（必要時）
 node scripts/scrape_external_baba.js 2026
+
+# 開催カレンダー更新（DB版、スクレイピング不要）
+node scripts/build_calendar_from_db.js          # 全期間
+node scripts/build_calendar_from_db.js 2026     # 指定年のみ
 ```
 
 ## 指数計算の概要（calc_index.js）
@@ -83,3 +88,8 @@ deploy.sh → GitHub Pages
 - race_result/ と race_index/ はgit管理外（.gitignore）
 - external_baba_diff.json は ittai.net からスクレイピング。2018-2026年分取得済み
 - baba_diff.json（自前馬場差）は現在空。外部データ排除時に自前導出予定
+
+## 開発ルール
+
+- プログラム修正前に変更点をユーザーに報告し、承認を得ること
+- プログラム修正は必ず全体のコードを読んでから行うこと

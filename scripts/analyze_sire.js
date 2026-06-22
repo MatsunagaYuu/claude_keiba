@@ -5,6 +5,7 @@
 // Usage:
 //   node scripts/analyze_sire.js
 //   node scripts/analyze_sire.js --sire=サトノダイヤモンド --sex=牡 --gen=9 --top=100
+//   node scripts/analyze_sire.js --sire=エピファネイア --only-unraced   # 未出走産駒評価のみ出力
 
 'use strict';
 
@@ -53,6 +54,7 @@ const SEED         = parseInt(getArg('seed',   '42'));
 // --eval-sex:   評価対象の性別 (デフォルト: --sex と同じ)
 const BIRTH_YEAR   = getArg('birth-year', String(new Date().getFullYear() - 2));
 const EVAL_SEX     = getArg('eval-sex',   SEX_FILTER);
+const ONLY_UNRACED = args.includes('--only-unraced');
 
 // ─── ユーティリティ ───────────────────────────────────────────────────────────
 
@@ -86,18 +88,28 @@ async function getOffspring(sireName, sexFilter) {
                : '';
   return await dbQuery(`
     SELECT
-      TRIM(k.bamei)                         AS name,
-      TRIM(k.ketto_toroku_bango)            AS ketto_bango,
-      TRIM(k.ketto1_hanshoku_toroku_bango)  AS sire_bango,
-      TRIM(k.ketto2_hanshoku_toroku_bango)  AS dam_bango,
-      COALESCE(TRIM(k.ketto2_bamei), '')    AS dam_name,
-      TRIM(k.seisansha_code)               AS seisansha_code,
-      COUNT(*)                              AS starts,
+      TRIM(k.bamei)                                              AS name,
+      TRIM(k.ketto_toroku_bango)                                 AS ketto_bango,
+      TRIM(k.ketto1_hanshoku_toroku_bango)                       AS sire_bango,
+      TRIM(k.ketto2_hanshoku_toroku_bango)                       AS dam_bango,
+      COALESCE(TRIM(haha.bamei), TRIM(k.ketto2_bamei), '')       AS dam_name,
+      COALESCE(TRIM(hahachihi.bamei), '-')                       AS dam_sire_name,
+      TRIM(k.seisansha_code)                                     AS seisansha_code,
+      COALESCE(TRIM(sm.seisanshamei_hojinkaku_nashi), '-')       AS breeder,
+      COALESCE(TRIM(k.chokyoshimei_ryakusho), '-')               AS trainer,
+      COALESCE(TRIM(k.banushimei_hojinkaku_nashi), '-')          AS owner,
+      COUNT(*)                                                   AS starts,
       SUM(CASE WHEN TRIM(u.kakutei_chakujun)::int = 1 THEN 1 ELSE 0 END) AS wins,
-      SUM(TRIM(u.kakutoku_honshokin)::bigint) / 10000.0 AS prize_man
+      SUM(TRIM(u.kakutoku_honshokin)::bigint) / 10000.0         AS prize_man
     FROM kyosoba_master2 k
     JOIN hanshokuba_master2 chichi
       ON TRIM(k.ketto1_hanshoku_toroku_bango) = TRIM(chichi.hanshoku_toroku_bango)
+    LEFT JOIN hanshokuba_master2 haha
+      ON TRIM(k.ketto2_hanshoku_toroku_bango) = TRIM(haha.hanshoku_toroku_bango)
+    LEFT JOIN hanshokuba_master2 hahachihi
+      ON TRIM(haha.chichi_hanshoku_toroku_bango) = TRIM(hahachihi.hanshoku_toroku_bango)
+    LEFT JOIN seisansha_master2 sm
+      ON TRIM(k.seisansha_code) = TRIM(sm.seisansha_code)
     JOIN umagoto_race_joho u
       ON TRIM(k.ketto_toroku_bango) = TRIM(u.ketto_toroku_bango)
     JOIN race_shosai r ON u.race_code = r.race_code
@@ -110,7 +122,12 @@ async function getOffspring(sireName, sexFilter) {
     GROUP BY
       TRIM(k.bamei), TRIM(k.ketto_toroku_bango),
       TRIM(k.ketto1_hanshoku_toroku_bango), TRIM(k.ketto2_hanshoku_toroku_bango),
-      COALESCE(TRIM(k.ketto2_bamei), ''), TRIM(k.seisansha_code)
+      COALESCE(TRIM(haha.bamei), TRIM(k.ketto2_bamei), ''),
+      COALESCE(TRIM(hahachihi.bamei), '-'),
+      TRIM(k.seisansha_code),
+      COALESCE(TRIM(sm.seisanshamei_hojinkaku_nashi), '-'),
+      COALESCE(TRIM(k.chokyoshimei_ryakusho), '-'),
+      COALESCE(TRIM(k.banushimei_hojinkaku_nashi), '-')
   `, [sireName]);
 }
 
@@ -125,23 +142,26 @@ async function getUnracedOffspring(sireName, sexFilter, birthYear) {
   // kyosoba_master2 に登録済みなら正式馬名を使用、未登録なら母名+'のYY'で識別
   const rows = await dbQuery(`
     SELECT
-      TRIM(s.ketto_toroku_bango)              AS ketto_bango,
-      TRIM(s.ketto1_hanshoku_toroku_bango)    AS sire_bango,
-      TRIM(s.ketto2_hanshoku_toroku_bango)    AS dam_bango,
-      COALESCE(TRIM(haha.bamei), '')          AS dam_name,
-      TRIM(s.seinengappi)                     AS birth_date,
+      TRIM(s.ketto_toroku_bango)                            AS ketto_bango,
+      TRIM(s.ketto1_hanshoku_toroku_bango)                  AS sire_bango,
+      TRIM(s.ketto2_hanshoku_toroku_bango)                  AS dam_bango,
+      COALESCE(TRIM(haha.bamei), '')                        AS dam_name,
+      COALESCE(TRIM(hahachihi.bamei), '-')                  AS dam_sire_name,
+      TRIM(s.seinengappi)                                   AS birth_date,
       CASE TRIM(s.seibetsu_code)
         WHEN '1' THEN '牡' WHEN '2' THEN '牝' WHEN '3' THEN 'セ' ELSE '' END AS sex,
-      COALESCE(TRIM(k.bamei), '')             AS registered_name,
-      TRIM(s.seisansha_code)                               AS seisansha_code,
-      COALESCE(TRIM(sm.seisanshamei_hojinkaku_nashi), '-') AS breeder,
-      COALESCE(TRIM(k.chokyoshimei_ryakusho), '-')         AS trainer,
-      COALESCE(TRIM(k.banushimei_hojinkaku_nashi), '-')    AS owner
+      COALESCE(TRIM(k.bamei), '')                           AS registered_name,
+      TRIM(s.seisansha_code)                                AS seisansha_code,
+      COALESCE(TRIM(sm.seisanshamei_hojinkaku_nashi), '-')  AS breeder,
+      COALESCE(TRIM(k.chokyoshimei_ryakusho), '-')          AS trainer,
+      COALESCE(TRIM(k.banushimei_hojinkaku_nashi), '-')     AS owner
     FROM sanku_master2 s
     JOIN hanshokuba_master2 chichi
       ON TRIM(s.ketto1_hanshoku_toroku_bango) = TRIM(chichi.hanshoku_toroku_bango)
     LEFT JOIN hanshokuba_master2 haha
       ON TRIM(s.ketto2_hanshoku_toroku_bango) = TRIM(haha.hanshoku_toroku_bango)
+    LEFT JOIN hanshokuba_master2 hahachihi
+      ON TRIM(haha.chichi_hanshoku_toroku_bango) = TRIM(hahachihi.hanshoku_toroku_bango)
     LEFT JOIN kyosoba_master2 k
       ON TRIM(k.ketto_toroku_bango) = TRIM(s.ketto_toroku_bango)
     LEFT JOIN seisansha_master2 sm
@@ -486,6 +506,7 @@ async function main() {
 
   // ─────────────────────────── 出力 ───────────────────────────────────────────
   const W = 110;
+  if (!ONLY_UNRACED) {
   console.log('\n' + '═'.repeat(W));
   console.log(`  種牡馬インブリード配合分析   ${SIRE_NAME} (${SEX_FILTER})  ${MAX_GEN}代  分析頭数: ${horses.length}頭`);
   console.log('═'.repeat(W));
@@ -556,13 +577,19 @@ async function main() {
 
   // ══ 馬別評価スコア一覧 ════════════════════════════════════════════════════════
   const horseResults = horses.map((h, i) => ({
-    name:   h.name,
-    starts: parseInt(h.starts),
-    wins:   parseInt(h.wins),
-    prize:  Math.round(parseFloat(h.prize_man)),
-    score:  scores[i],
-    cls:    classify(scores[i]),
-    isTest: testIdx.has(i),
+    name:       h.name,
+    starts:     parseInt(h.starts),
+    wins:       parseInt(h.wins),
+    prize:      Math.round(parseFloat(h.prize_man)),
+    score:      scores[i],
+    cls:        classify(scores[i]),
+    isTest:     testIdx.has(i),
+    sire:       SIRE_NAME,
+    dam:        h.dam_name || '-',
+    damSire:    h.dam_sire_name || '-',
+    breeder:    h.breeder || '-',
+    trainer:    h.trainer || '-',
+    owner:      h.owner || '-',
     topIbs: Object.values(horseInbreeds[h.name])
       .sort((a, b) => b.pct - a.pct)
       .slice(0, 4)
@@ -573,19 +600,31 @@ async function main() {
   console.log('\n' + '─'.repeat(W));
   console.log('  【馬別スコア】  (* = テストセット  ○ = 勝ち馬)  主なインブリード: 祖先名(クロス代,血量%)');
   console.log('─'.repeat(W));
-  console.log(`  ${''.padEnd(1)} ${'順'.padStart(3)} ${'馬名'.padEnd(18)} ${'出走'.padStart(4)} ${'勝'.padStart(2)} ${'賞金(万)'.padStart(8)} ${'スコア'.padStart(7)}  ${'区分'}  ${'主なインブリード'}`);
-  console.log('  ' + '─'.repeat(W - 2));
+  console.log([
+    'T', '順', '馬名', '出走', '勝', '賞金(万)', 'スコア', '区分', '勝ち馬',
+    '父名', '母名', '母父名', '生産者', '厩舎', '馬主', '主なインブリード',
+  ].join('\t'));
 
   for (let rank = 0; rank < horseResults.length; rank++) {
     const r = horseResults[rank];
-    const t = r.isTest ? '*' : ' ';
-    const w = r.wins >= 1 ? '○' : '  ';
-    console.log(
-      `  ${t} ${String(rank + 1).padStart(3)} ${r.name.padEnd(18)} ` +
-      `${String(r.starts).padStart(4)} ${String(r.wins).padStart(2)} ` +
-      `${String(r.prize).padStart(8)} ${r.score.toFixed(3).padStart(7)}  [${r.cls}]  ` +
-      `${w} ${r.topIbs}`
-    );
+    console.log([
+      r.isTest ? '*' : '',
+      rank + 1,
+      r.name,
+      r.starts,
+      r.wins,
+      r.prize,
+      r.score.toFixed(3),
+      r.cls,
+      r.wins >= 1 ? '○' : '',
+      r.sire,
+      r.dam,
+      r.damSire,
+      r.breeder,
+      r.trainer,
+      r.owner,
+      r.topIbs,
+    ].join('\t'));
   }
 
   // ══ 区分別サマリ ══════════════════════════════════════════════════════════════
@@ -610,6 +649,7 @@ async function main() {
   console.log('\n  ※ カットオフ: A>+1σ / B:0〜+1σ / C:-1σ〜0 / D:<-1σ');
   console.log('  ※ 特徴量は血量%(連続値)を標準化して使用。全馬共通の祖先でも母方追加クロスで差別化可能。');
   console.log('  ※ 過去実績ベース分析。未来予測には限界あり。');
+  } // end if (!ONLY_UNRACED)
 
   // ══ 未出走産駒評価 ══════════════════════════════════════════════════════════════
   process.stderr.write(`\n[9] 未出走${BIRTH_YEAR}年生まれ産駒評価 (${EVAL_SEX})...\n`);
@@ -660,13 +700,15 @@ async function main() {
       }).join(' ');
 
     return {
-      name: h.name,
-      sex: h.sex,
+      name:     h.name,
+      sex:      h.sex,
       birthDate: h.birth_date,
-      dam: h.dam_name,
-      breeder: h.breeder,
-      trainer: h.trainer,
-      owner: h.owner,
+      sire:     SIRE_NAME,
+      dam:      h.dam_name || '-',
+      damSire:  h.dam_sire_name || '-',
+      breeder:  h.breeder,
+      trainer:  h.trainer,
+      owner:    h.owner,
       score,
       cls: classify(score),
       topIbs,
@@ -679,18 +721,28 @@ async function main() {
   console.log('═'.repeat(W));
   console.log(`  ▲▲=グループ比較で勝ち馬に+10%超多い祖先 / ▲=+3%超 / ▼▼=−10%超少ない / ▼=−3%超`);
   console.log('─'.repeat(W));
-  console.log(
-    `  ${'順'.padStart(3)} ${'馬名'.padEnd(16)} ${'性'.padStart(2)} ${'生年月日'.padStart(8)}` +
-    `  ${'スコア'.padStart(7)}  ${'区分'}  ${'母名'.padEnd(16)}  ${'生産者'.padEnd(16)}  ${'厩舎'.padEnd(10)}  ${'馬主'.padEnd(18)}  ${'主なインブリード'}`
-  );
-  console.log('  ' + '─'.repeat(W + 50));
+  console.log([
+    '順', '馬名', '性', '生年月日', 'スコア', '区分',
+    '父名', '母名', '母父名', '生産者', '厩舎', '馬主', '主なインブリード',
+  ].join('\t'));
 
   for (let rank = 0; rank < unracedResults.length; rank++) {
     const r = unracedResults[rank];
-    console.log(
-      `  ${String(rank + 1).padStart(3)} ${r.name.padEnd(16)} ${r.sex.padStart(2)} ${r.birthDate.padStart(8)}` +
-      `  ${r.score.toFixed(3).padStart(7)}  [${r.cls}]  ${r.dam.padEnd(16)}  ${r.breeder.padEnd(16)}  ${r.trainer.padEnd(10)}  ${r.owner.padEnd(18)}  ${r.topIbs}`
-    );
+    console.log([
+      rank + 1,
+      r.name,
+      r.sex,
+      r.birthDate,
+      r.score.toFixed(3),
+      r.cls,
+      r.sire,
+      r.dam,
+      r.damSire,
+      r.breeder,
+      r.trainer,
+      r.owner,
+      r.topIbs,
+    ].join('\t'));
   }
 
   // 区分別集計

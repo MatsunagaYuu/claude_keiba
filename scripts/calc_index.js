@@ -7,10 +7,7 @@ const BASE_TIMES_FILE = path.join(__dirname, "..", "base_times.json");
 const BABA_DIFF_FILE = path.join(__dirname, "..", "baba_diff.json");
 const EXT_BABA_FILE = path.join(__dirname, "..", "external_baba_diff.json");
 const CALENDAR_FILE = path.join(__dirname, "..", "kaisai_calendar.json");
-// DBエクスポート（優先）とnetkeibaスクレイパー（フォールバック）の両方を参照
-// raceIdフォーマットはnetkeibaと共通（YYYY+venue+kai+day+race）
-const RACE_RESULT_DB_DIR = path.join(__dirname, "..", "race_result_fromDB");
-const RACE_RESULT_SCRAPER_DIR = path.join(__dirname, "..", "race_result");
+const RACE_RESULT_DIR = path.join(__dirname, "..", "race_result");
 const OUTPUT_DIR = path.join(__dirname, "..", NAISEI_MODE ? "race_index_naisei" : "race_index");
 
 // 外部馬場差のダート距離スケーリング係数（回帰分析による）
@@ -199,23 +196,7 @@ function main() {
 
   if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR);
 
-  // DB優先でファイルリストを構築: DB版 + スクレイパー版（DBにない分のみ）
-  const dbFiles = new Set(
-    fs.existsSync(RACE_RESULT_DB_DIR)
-      ? fs.readdirSync(RACE_RESULT_DB_DIR).filter((f) => f.endsWith(".csv"))
-      : []
-  );
-  // スクレイパーファイルのうち、DB優先かつ正規フォーマット（日付なし・グレードなし）のみ
-  // ヘッダーが "日付," 始まり → DB形式、"競馬場名," + グレードあり → 旧中間形式（除外）
-  const scraperFallback = fs.existsSync(RACE_RESULT_SCRAPER_DIR)
-    ? fs.readdirSync(RACE_RESULT_SCRAPER_DIR)
-        .filter((f) => f.endsWith(".csv") && !dbFiles.has(f))
-        .filter((f) => {
-          const h = fs.readFileSync(path.join(RACE_RESULT_SCRAPER_DIR, f), "utf-8").split("\n")[0] || "";
-          // 旧DB中間形式（競馬場名始まり＋グレードあり）を除外
-          return !(h.startsWith("競馬場名") && h.includes("グレード"));
-        })
-    : [];
+  const allFiles = fs.readdirSync(RACE_RESULT_DIR).filter((f) => f.endsWith(".csv"));
 
   // 単一raceId指定（12桁）または --date YYYYMMDD [...] によるフィルタ
   const raceId = process.argv.find(a => !a.startsWith("--") && /^\d{12}$/.test(a));
@@ -227,23 +208,15 @@ function main() {
   let fileEntries; // { file, dir }
   if (raceId) {
     const fileName = `result_${raceId}.csv`;
-    const dbPath = path.join(RACE_RESULT_DB_DIR, fileName);
-    const scraperPath = path.join(RACE_RESULT_SCRAPER_DIR, fileName);
-    if (fs.existsSync(dbPath)) {
-      fileEntries = [{ file: fileName, dir: RACE_RESULT_DB_DIR }];
-    } else if (fs.existsSync(scraperPath)) {
-      fileEntries = [{ file: fileName, dir: RACE_RESULT_SCRAPER_DIR }];
-    } else {
+    if (!fs.existsSync(path.join(RACE_RESULT_DIR, fileName))) {
       console.error(`File not found: ${fileName}`);
       process.exit(1);
     }
+    fileEntries = [{ file: fileName, dir: RACE_RESULT_DIR }];
   } else {
-    fileEntries = [
-      ...[...dbFiles].map((f) => ({ file: f, dir: RACE_RESULT_DB_DIR })),
-      ...scraperFallback.map((f) => ({ file: f, dir: RACE_RESULT_SCRAPER_DIR })),
-    ];
+    fileEntries = allFiles.map((f) => ({ file: f, dir: RACE_RESULT_DIR }));
   }
-  console.log(`Input: DB=${dbFiles.size}, Scraper fallback=${scraperFallback.length}`);
+  console.log(`Input: ${allFiles.length} files from race_result/`);
 
   // --date フィルタ: カレンダーからraceIdプレフィックスを生成して絞り込み
   if (filterDates.length > 0 && !raceId) {
@@ -329,10 +302,31 @@ function main() {
         // レース番号取得（ファイル名末尾2桁）
         const raceNum = parseInt(rid.substring(10, 12));
 
-        // レース別馬場差を優先（距離補正済み）
-        if (extRecord.レース別馬場差 && extRecord.レース別馬場差[String(raceNum)] !== undefined) {
-          babaDiff = extRecord.レース別馬場差[String(raceNum)];
-        } else if (surface === "ダート") {
+        // レース別馬場差を優先
+        // 二階層形式: {"芝": {R: 補正前値}, "ダート": {R: 補正前値}, "芝_1000": {R: 補正前値}, ...}
+        // 旧フラット形式: {R: 補正済み実数値} (後方互換)
+        if (extRecord.レース別馬場差) {
+          const raceMap = extRecord.レース別馬場差;
+          const raceNumStr = String(raceNum);
+          const distKey = `${surface}_${d}`;
+          if (raceMap[distKey]?.[raceNumStr] !== undefined) {
+            // 距離別変動（補正前値）→ 距離補正適用
+            const raw = raceMap[distKey][raceNumStr];
+            babaDiff = surface === "ダート"
+              ? raw * (DIRT_SCALE_A * d + DIRT_SCALE_B)
+              : raw * (d / 2000);
+          } else if (raceMap[surface]?.[raceNumStr] !== undefined) {
+            // surface別変動（補正前値）→ 距離補正適用
+            const raw = raceMap[surface][raceNumStr];
+            babaDiff = surface === "ダート"
+              ? raw * (DIRT_SCALE_A * d + DIRT_SCALE_B)
+              : raw * (d / 2000);
+          } else if (raceMap[raceNumStr] !== undefined) {
+            // 旧フラット形式（補正済み）→ そのまま使用
+            babaDiff = raceMap[raceNumStr];
+          }
+        }
+        if (babaDiff === null && surface === "ダート") {
           // ダート：距離別馬場差が優先
           if (extRecord.ダート距離別馬場差 && extRecord.ダート距離別馬場差[d]) {
             // 距離別がある場合、そのまま使用（既に距離補正済み）
@@ -341,7 +335,7 @@ function main() {
             // 距離別がない場合、全体値で距離補正（回帰フィット係数）
             babaDiff = extRecord.ダート馬場差 * (DIRT_SCALE_A * d + DIRT_SCALE_B);
           }
-        } else {
+        } else if (babaDiff === null) {
           // 芝：常に距離補正（2000m基準）
           if (extRecord.芝馬場差 !== null) {
             babaDiff = extRecord.芝馬場差 * (d / 2000);
@@ -412,7 +406,7 @@ function main() {
 
       const relativeAgari = expectedLast3f - adjustedLast3f;
       const absoluteAgari = anchorLast3fBase - last3f;
-      const agariRaw = (absoluteAgari * 0.5 + relativeAgari * 0.5) * courseFactor;
+      const agariRaw = (absoluteAgari * 0.2 + relativeAgari * 0.8) * courseFactor;
 
       const agariWeight = getAgariWeight(surface, dist, ageClass);
       const combinedRaw = timeDiff + agariRaw * agariWeight;

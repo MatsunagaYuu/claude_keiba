@@ -1,5 +1,5 @@
 #!/bin/bash
-# レース結果バッチ: DBエクスポート → カレンダー更新 → 基準タイム → 外部馬場差 → 指数 → ビューア → デプロイ
+# レース結果バッチ: スクレイピング → カレンダー更新 → 基準タイム → 外部馬場差 → 指数 → ビューア → デプロイ
 # Usage: ./batch_result.sh [YYYYMMDD ...]
 #   引数なし: 直近開催日を自動特定（get_next_dates.js --last）
 #   引数あり: 指定日付のデータのみ処理（指数・ビューア更新を絞り込み）
@@ -28,15 +28,15 @@ if [ -z "$YEARS" ]; then
 fi
 
 echo ""
-echo "=== DBからレース結果エクスポート ==="
-for Y in $YEARS; do
-  node scripts/export_fromDB.js "$Y" --force
+echo "=== レース結果スクレイピング ==="
+for DATE in $DATES; do
+  node scripts/scrape_result_by_date.js "$DATE"
 done
 
 echo ""
 echo "=== カレンダー更新 ==="
 for Y in $YEARS; do
-  node scripts/build_calendar_from_db.js "$Y"
+  node scripts/scrape_calendar.js "$Y"
 done
 
 echo ""

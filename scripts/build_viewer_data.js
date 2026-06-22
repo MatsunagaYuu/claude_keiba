@@ -124,10 +124,28 @@ function main() {
         const dist = parseInt(first["距離"]);
         let displayVals = [];
 
-        // レース別馬場差を優先（距離補正済み）
-        if (extRecord.レース別馬場差 && extRecord.レース別馬場差[String(raceNum)] !== undefined) {
-          displayVals.push(extRecord.レース別馬場差[String(raceNum)]);
-        } else if (surface === "ダート") {
+        // レース別馬場差を優先
+        // 二階層形式: {"芝": {R: 補正前値}, "ダート": {R: 補正前値}, "芝_1000": {R: 補正前値}, ...}
+        // 旧フラット形式: {R: 補正済み実数値} (後方互換)
+        if (extRecord.レース別馬場差) {
+          const raceMap = extRecord.レース別馬場差;
+          const raceNumStr = String(raceNum);
+          const distKey = `${surface}_${dist}`;
+          if (raceMap[distKey]?.[raceNumStr] !== undefined) {
+            const raw = raceMap[distKey][raceNumStr];
+            displayVals.push(surface === "ダート"
+              ? raw * (DIRT_SCALE_A * dist + DIRT_SCALE_B)
+              : raw * (dist / 2000));
+          } else if (raceMap[surface]?.[raceNumStr] !== undefined) {
+            const raw = raceMap[surface][raceNumStr];
+            displayVals.push(surface === "ダート"
+              ? raw * (DIRT_SCALE_A * dist + DIRT_SCALE_B)
+              : raw * (dist / 2000));
+          } else if (raceMap[raceNumStr] !== undefined) {
+            displayVals.push(raceMap[raceNumStr]);
+          }
+        }
+        if (displayVals.length === 0 && surface === "ダート") {
           // ダート距離別馬場差がある場合
           if (extRecord.ダート距離別馬場差 && extRecord.ダート距離別馬場差[dist]) {
             displayVals.push(extRecord.ダート距離別馬場差[dist]);
@@ -135,7 +153,7 @@ function main() {
             // 距離別がない場合、全体値で距離補正（回帰フィット係数）
             displayVals.push(extRecord.ダート馬場差 * (DIRT_SCALE_A * dist + DIRT_SCALE_B));
           }
-        } else {
+        } else if (displayVals.length === 0) {
           // 芝：常に距離補正
           if (extRecord.芝馬場差 !== null) {
             displayVals.push(extRecord.芝馬場差 * (dist / 2000));

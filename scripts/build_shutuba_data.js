@@ -11,6 +11,14 @@ const EXT_BABA_FILE = path.join(__dirname, "..", "external_baba_diff.json");
 const DIRT_SCALE_A = 0.000425;
 const DIRT_SCALE_B = 0.352;
 
+function timeToSec(t) {
+  if (!t) return null;
+  const m = t.match(/^(\d+):(\d+\.\d+)$/);
+  if (m) return parseInt(m[1]) * 60 + parseFloat(m[2]);
+  const s = parseFloat(t);
+  return isNaN(s) ? null : s;
+}
+
 function babaLabel(diff) {
   if (diff === null || diff === undefined) return "";
   const abs = Math.abs(diff);
@@ -139,10 +147,27 @@ function main() {
       }
     }
 
+    // 勝ち馬（1着）と2着馬を取得
+    const winnerRow = rows.find(r => r["着順"] === "1");
+    const secondRow = rows.find(r => r["着順"] === "2");
+
     for (const r of rows) {
       const name = r["馬名"];
       if (!name) continue;
       if (!horseHistory[name]) horseHistory[name] = [];
+
+      const isWinner = r["着順"] === "1";
+      const refRow = isWinner ? secondRow : winnerRow;
+
+      // タイム差を秒で計算（勝ち馬基準: 勝ち馬は負値、他馬は正値）
+      let margin = "";
+      const thisTime = timeToSec(r["タイム"]);
+      const refTime = refRow ? timeToSec(refRow["タイム"]) : null;
+      if (thisTime !== null && refTime !== null) {
+        const diff = thisTime - refTime;
+        margin = (diff > 0 ? "+" : "") + diff.toFixed(1);
+      }
+
       horseHistory[name].push({
         raceId,
         date,
@@ -158,6 +183,12 @@ function main() {
         babaSpeed,
         passing: r["通過"],
         ref: r["参考"] || "",
+        jockey: r["騎手"] || "",
+        weight: r["斤量"] || "",
+        gate: r["枠番"] || "",
+        pop: r["人気"] || "",
+        refHorse: refRow ? refRow["馬名"] : "",
+        margin,
       });
     }
   }
@@ -215,6 +246,8 @@ function main() {
       const past5 = history.slice(0, 5).map((h) => [
         h.date, h.venue, h.dist, h.surface, h.cond, h.rank, h.totalIdx, h.abilityIdx,
         h.babaSpeed, h.time, h.last3f, h.raceId, h.passing, h.ref || "",
+        h.jockey || "", h.weight || "", h.gate || "", h.pop || "",
+        h.refHorse || "", h.margin || "",
       ]);
 
       horses.push([
