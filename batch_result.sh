@@ -6,6 +6,7 @@
 #   例: ./batch_result.sh 20260404 20260405
 set -e
 cd "$(dirname "$0")"
+export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
 
 YEAR=$(date +%Y)
 

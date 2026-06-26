@@ -2,6 +2,7 @@
 # ビューアデータをビルドしてGitHub Pagesにデプロイ
 set -e
 cd "$(dirname "$0")"
+export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
 
 echo "=== ビューアデータビルド ==="
 node scripts/build_baba_diff.js

@@ -6,6 +6,7 @@
 #   例: ./batch_shutuba.sh 20260307 20260308
 set -e
 cd "$(dirname "$0")"
+export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
 
 if [ $# -gt 0 ]; then
   DATES="$@"
