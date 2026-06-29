@@ -1,0 +1,67 @@
+name: Batch Shutuba (土曜自動更新)
+
+on:
+  schedule:
+    - cron: '0 0 * * 6'  # 土曜 09:00 JST
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: race_index キャッシュ復元（馬歴表示用）
+        uses: actions/cache/restore@v4
+        with:
+          path: race_index
+          key: race-index-latest
+          restore-keys: |
+            race-index-
+
+      - name: 次の開催日を特定
+        id: dates
+        run: |
+          DATES=$(node scripts/get_next_dates.js | tr '\n' ' ' | xargs)
+          echo "dates=$DATES" >> $GITHUB_OUTPUT
+          echo "対象日: $DATES"
+
+      - name: 出馬表スクレイピング
+        env:
+          DATES: ${{ steps.dates.outputs.dates }}
+        run: |
+          for DATE in $DATES; do
+            node scripts/scrape_shutuba.js "$DATE"
+          done
+
+      - name: 出馬表データ生成
+        env:
+          DATES: ${{ steps.dates.outputs.dates }}
+        run: node scripts/build_shutuba_data.js --date $DATES
+
+      - name: Git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}"
+          git add docs/
+          if git diff --cached --quiet; then
+            echo "変更なし"
+          else
+            git commit -m "出馬表更新 $(date +%Y%m%d)"
+            git push
+          fi

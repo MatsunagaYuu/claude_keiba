@@ -1,0 +1,90 @@
+name: Batch Result (月曜自動更新)
+
+on:
+  schedule:
+    - cron: '0 1 * * 1'  # 月曜 10:00 JST
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: 直近開催日を特定
+        id: dates
+        run: |
+          DATES=$(node scripts/get_next_dates.js --last | tr '\n' ' ' | xargs)
+          YEARS=$(echo "$DATES" | tr ' ' '\n' | grep -E '^[0-9]{8}$' | cut -c1-4 | sort -u | tr '\n' ' ' | xargs)
+          echo "dates=$DATES" >> $GITHUB_OUTPUT
+          echo "years=$YEARS" >> $GITHUB_OUTPUT
+          echo "対象日: $DATES"
+          echo "対象年: $YEARS"
+
+      - name: レース結果スクレイピング
+        env:
+          DATES: ${{ steps.dates.outputs.dates }}
+        run: |
+          for DATE in $DATES; do
+            node scripts/scrape_result_by_date.js "$DATE"
+          done
+
+      - name: カレンダー更新
+        env:
+          YEARS: ${{ steps.dates.outputs.years }}
+        run: |
+          for Y in $YEARS; do
+            node scripts/scrape_calendar.js "$Y"
+          done
+
+      - name: 基準タイム再計算
+        run: node scripts/build_base_times.js
+
+      - name: 外部馬場差取得
+        env:
+          YEARS: ${{ steps.dates.outputs.years }}
+        run: |
+          for Y in $YEARS; do
+            node scripts/scrape_external_baba.js "$Y"
+          done
+
+      - name: 指数算出
+        env:
+          DATES: ${{ steps.dates.outputs.dates }}
+        run: node scripts/calc_index.js --date $DATES
+
+      - name: ビューアデータ更新（差分マージ）
+        run: node scripts/build_viewer_data.js --merge
+
+      - name: race_index キャッシュ保存（出馬表バッチ用）
+        uses: actions/cache/save@v4
+        with:
+          path: race_index
+          key: race-index-latest
+
+      - name: Git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}"
+          git add docs/ external_baba_diff.json kaisai_calendar.json base_times.json
+          if git diff --cached --quiet; then
+            echo "変更なし"
+          else
+            git commit -m "ビューアデータ更新 $(date +%Y%m%d)"
+            git push
+          fi

@@ -76,10 +76,13 @@ function main() {
     ? process.argv.slice(yearArgIdx + 1).filter(a => /^\d{4}$/.test(a))
     : []);
 
+  // --merge: 既存 data_YYYY.json に差分マージ（GitHub Actions用）
+  const mergeMode = process.argv.includes("--merge");
+
   const files = fs.readdirSync(INDEX_DIR)
     .filter(f => f.endsWith(".csv"))
     .filter(f => !filterYears.size || filterYears.has(f.slice(6, 10)));
-  console.log(`Index files: ${files.length}${filterYears.size ? ` (year filter: ${[...filterYears].join(",")})` : ""}`);
+  console.log(`Index files: ${files.length}${filterYears.size ? ` (year filter: ${[...filterYears].join(",")})` : ""}${mergeMode ? " [merge mode]" : ""}`);
 
   // 年ごとにグループ化
   const byYear = {};
@@ -180,29 +183,40 @@ function main() {
 
   // 年ごとにファイル出力
   const years = Object.keys(byYear).sort().reverse();
+  const finalCounts = {};
   for (const year of years) {
-    byYear[year].sort((a, b) => {
+    let races;
+    const outFile = path.join(OUTPUT_DIR, `data_${year}.json`);
+    if (mergeMode && fs.existsSync(outFile)) {
+      const existing = JSON.parse(fs.readFileSync(outFile, "utf-8"));
+      const raceMap = new Map(existing.map(r => [r[0], r]));
+      for (const race of byYear[year]) raceMap.set(race[0], race);
+      races = [...raceMap.values()];
+    } else {
+      races = byYear[year];
+    }
+    races.sort((a, b) => {
       const dateA = a[11] || a[0].substring(0, 8);
       const dateB = b[11] || b[0].substring(0, 8);
       if (dateA !== dateB) return dateB.localeCompare(dateA);
       return b[12] - a[12]; // race number desc
     });
-    const outFile = path.join(OUTPUT_DIR, `data_${year}.json`);
-    fs.writeFileSync(outFile, JSON.stringify(byYear[year]), "utf-8");
+    fs.writeFileSync(outFile, JSON.stringify(races), "utf-8");
     const sizeMB = (fs.statSync(outFile).size / 1024 / 1024).toFixed(1);
-    console.log(`  ${year}: ${byYear[year].length} races (${sizeMB}MB)`);
+    console.log(`  ${year}: ${races.length} races (${sizeMB}MB)`);
+    finalCounts[year] = races.length;
   }
 
-  // meta.json: フィルタ時は既存ファイルとマージして全年分を保持
+  // meta.json: フィルタ/マージ時は既存ファイルとマージして全年分を保持
   const metaFile = path.join(OUTPUT_DIR, "meta.json");
   let meta;
-  if (filterYears.size && fs.existsSync(metaFile)) {
+  if ((filterYears.size || mergeMode) && fs.existsSync(metaFile)) {
     const existing = JSON.parse(fs.readFileSync(metaFile, "utf-8"));
     const metaMap = new Map(existing.map(e => [e.year, e]));
-    for (const y of years) metaMap.set(y, { year: y, count: byYear[y].length });
+    for (const y of years) metaMap.set(y, { year: y, count: finalCounts[y] });
     meta = [...metaMap.keys()].sort().reverse().map(y => metaMap.get(y));
   } else {
-    meta = years.map(y => ({ year: y, count: byYear[y].length }));
+    meta = years.map(y => ({ year: y, count: finalCounts[y] }));
   }
   fs.writeFileSync(metaFile, JSON.stringify(meta), "utf-8");
   console.log(`\nSaved: ${years.length} year files + meta.json`);
