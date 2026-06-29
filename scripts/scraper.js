@@ -15,6 +15,13 @@ function fetchHTML(raceId) {
   return decoder.decode(raw);
 }
 
+function normalizeClass(raw) {
+  // 条件表記を除去: (混)(特指)(定量) / [指](馬齢) / 牝 / 牡 など
+  let s = raw.replace(/[\s　]*(?:[\(（\[【][^\)\]）】]*[\)\]）】]|牝|牡)+/g, "").trim();
+  s = s.replace(/オープン/, "OP").replace(/クラス/, "").trim();
+  return s;
+}
+
 function parseRaceNameGrade(h1Text) {
   const text = h1Text.replace(/<!--.*?-->/g, "").trim();
   const m = text.match(/^(.+?)\((GI{0,2}|L|OP|\d+勝)\)$/);
@@ -45,7 +52,7 @@ function scrapeRaceResult(raceId) {
   const kaisai = diaryMatch ? `${diaryMatch[1]}回` : "";
   const basho = diaryMatch ? diaryMatch[2] : "";
   const nichime = diaryMatch ? diaryMatch[3] : "";
-  const raceClass = diaryMatch ? diaryMatch[4].trim() : "";
+  const raceClass = diaryMatch ? normalizeClass(diaryMatch[4]) : "";
 
   const spanText = $(".racedata span").text().replace(/\s+/g, " ").trim();
   const surfaceMatch = spanText.match(/(芝|ダ)[^\d]*(\d+)m/);
