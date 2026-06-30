@@ -88,6 +88,10 @@ function main() {
   console.log("Building horse history map from race_index...");
   const horseHistory = {};
 
+  if (!fs.existsSync(INDEX_DIR)) {
+    console.log("  race_index/ not found, skipping horse history (no cache)");
+    fs.mkdirSync(INDEX_DIR, { recursive: true });
+  }
   const indexFiles = fs.readdirSync(INDEX_DIR).filter((f) => f.endsWith(".csv"));
   console.log(`  Index files: ${indexFiles.length}`);
 
