@@ -1,0 +1,33 @@
+name: Seed race_index cache (初回一回限り)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: race_index アーカイブをリリースからダウンロード
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release download cache-seed --pattern "race_index.tar.gz"
+
+      - name: 展開
+        run: tar -xzf race_index.tar.gz
+
+      - name: race_index キャッシュ保存
+        uses: actions/cache/save@v4
+        with:
+          path: race_index
+          key: race-index-latest
+
+      - name: 一時リリース削除
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release delete cache-seed --yes
