@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '0 0 * * 6'  # 土曜 09:00 JST
   workflow_dispatch:
+    inputs:
+      use_cache:
+        description: 'race_indexキャッシュを使用する（馬歴表示）'
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -23,6 +28,7 @@ jobs:
         run: npm ci
 
       - name: race_index キャッシュ復元（馬歴表示用）
+        if: ${{ inputs.use_cache != false }}
         uses: actions/cache/restore@v4
         with:
           path: race_index
