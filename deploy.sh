@@ -12,8 +12,8 @@ cp base_times.json docs/
 
 echo ""
 echo "=== Git push ==="
-git add docs/
-git status --short docs/
+git add docs/ external_baba_diff.json kaisai_calendar.json base_times.json
+git status --short docs/ external_baba_diff.json kaisai_calendar.json base_times.json
 
 # 変更がなければ終了
 if git diff --cached --quiet; then

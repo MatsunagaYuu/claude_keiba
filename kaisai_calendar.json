@@ -16048,29 +16048,9 @@
     "date": "20260208",
     "venues": [
       {
-        "venue": "東京",
-        "kaisai": 1,
-        "day": 4
-      },
-      {
-        "venue": "京都",
-        "kaisai": 2,
-        "day": 4
-      },
-      {
         "venue": "小倉",
         "kaisai": 1,
         "day": 6
-      }
-    ]
-  },
-  {
-    "date": "20260209",
-    "venues": [
-      {
-        "venue": "京都",
-        "kaisai": 2,
-        "day": 4
       }
     ]
   },
@@ -16248,14 +16228,14 @@
         "day": 5
       },
       {
-        "venue": "中京",
-        "kaisai": 1,
-        "day": 1
-      },
-      {
         "venue": "阪神",
         "kaisai": 1,
         "day": 7
+      },
+      {
+        "venue": "中京",
+        "kaisai": 1,
+        "day": 1
       }
     ]
   },
@@ -16268,14 +16248,14 @@
         "day": 6
       },
       {
-        "venue": "中京",
-        "kaisai": 1,
-        "day": 2
-      },
-      {
         "venue": "阪神",
         "kaisai": 1,
         "day": 8
+      },
+      {
+        "venue": "中京",
+        "kaisai": 1,
+        "day": 2
       }
     ]
   },
@@ -16288,14 +16268,14 @@
         "day": 7
       },
       {
-        "venue": "中京",
-        "kaisai": 1,
-        "day": 3
-      },
-      {
         "venue": "阪神",
         "kaisai": 1,
         "day": 9
+      },
+      {
+        "venue": "中京",
+        "kaisai": 1,
+        "day": 3
       }
     ]
   },
@@ -16308,14 +16288,14 @@
         "day": 8
       },
       {
-        "venue": "中京",
-        "kaisai": 1,
-        "day": 4
-      },
-      {
         "venue": "阪神",
         "kaisai": 1,
         "day": 10
+      },
+      {
+        "venue": "中京",
+        "kaisai": 1,
+        "day": 4
       }
     ]
   },
@@ -16328,14 +16308,14 @@
         "day": 1
       },
       {
-        "venue": "中京",
-        "kaisai": 1,
-        "day": 5
-      },
-      {
         "venue": "阪神",
         "kaisai": 2,
         "day": 1
+      },
+      {
+        "venue": "中京",
+        "kaisai": 1,
+        "day": 5
       }
     ]
   },
@@ -16348,14 +16328,14 @@
         "day": 2
       },
       {
-        "venue": "中京",
-        "kaisai": 1,
-        "day": 6
-      },
-      {
         "venue": "阪神",
         "kaisai": 2,
         "day": 2
+      },
+      {
+        "venue": "中京",
+        "kaisai": 1,
+        "day": 6
       }
     ]
   },
@@ -16393,11 +16373,6 @@
     "date": "20260411",
     "venues": [
       {
-        "venue": "福島",
-        "kaisai": 1,
-        "day": 1
-      },
-      {
         "venue": "中山",
         "kaisai": 3,
         "day": 5
@@ -16406,6 +16381,11 @@
         "venue": "阪神",
         "kaisai": 2,
         "day": 5
+      },
+      {
+        "venue": "福島",
+        "kaisai": 1,
+        "day": 1
       }
     ]
   },
@@ -16413,11 +16393,6 @@
     "date": "20260412",
     "venues": [
       {
-        "venue": "福島",
-        "kaisai": 1,
-        "day": 2
-      },
-      {
         "venue": "中山",
         "kaisai": 3,
         "day": 6
@@ -16426,6 +16401,11 @@
         "venue": "阪神",
         "kaisai": 2,
         "day": 6
+      },
+      {
+        "venue": "福島",
+        "kaisai": 1,
+        "day": 2
       }
     ]
   },
@@ -16433,11 +16413,6 @@
     "date": "20260418",
     "venues": [
       {
-        "venue": "福島",
-        "kaisai": 1,
-        "day": 3
-      },
-      {
         "venue": "中山",
         "kaisai": 3,
         "day": 7
@@ -16446,6 +16421,11 @@
         "venue": "阪神",
         "kaisai": 2,
         "day": 7
+      },
+      {
+        "venue": "福島",
+        "kaisai": 1,
+        "day": 3
       }
     ]
   },
@@ -16453,11 +16433,6 @@
     "date": "20260419",
     "venues": [
       {
-        "venue": "福島",
-        "kaisai": 1,
-        "day": 4
-      },
-      {
         "venue": "中山",
         "kaisai": 3,
         "day": 8
@@ -16466,6 +16441,11 @@
         "venue": "阪神",
         "kaisai": 2,
         "day": 8
+      },
+      {
+        "venue": "福島",
+        "kaisai": 1,
+        "day": 4
       }
     ]
   },
@@ -16473,11 +16453,6 @@
     "date": "20260425",
     "venues": [
       {
-        "venue": "福島",
-        "kaisai": 1,
-        "day": 5
-      },
-      {
         "venue": "東京",
         "kaisai": 2,
         "day": 1
@@ -16486,6 +16461,11 @@
         "venue": "京都",
         "kaisai": 3,
         "day": 1
+      },
+      {
+        "venue": "福島",
+        "kaisai": 1,
+        "day": 5
       }
     ]
   },
@@ -16493,11 +16473,6 @@
     "date": "20260426",
     "venues": [
       {
-        "venue": "福島",
-        "kaisai": 1,
-        "day": 6
-      },
-      {
         "venue": "東京",
         "kaisai": 2,
         "day": 2
@@ -16506,6 +16481,11 @@
         "venue": "京都",
         "kaisai": 3,
         "day": 2
+      },
+      {
+        "venue": "福島",
+        "kaisai": 1,
+        "day": 6
       }
     ]
   },
@@ -16513,11 +16493,6 @@
     "date": "20260502",
     "venues": [
       {
-        "venue": "新潟",
-        "kaisai": 1,
-        "day": 1
-      },
-      {
         "venue": "東京",
         "kaisai": 2,
         "day": 3
@@ -16526,6 +16501,11 @@
         "venue": "京都",
         "kaisai": 3,
         "day": 3
+      },
+      {
+        "venue": "新潟",
+        "kaisai": 1,
+        "day": 1
       }
     ]
   },
@@ -16533,11 +16513,6 @@
     "date": "20260503",
     "venues": [
       {
-        "venue": "新潟",
-        "kaisai": 1,
-        "day": 2
-      },
-      {
         "venue": "東京",
         "kaisai": 2,
         "day": 4
@@ -16546,6 +16521,11 @@
         "venue": "京都",
         "kaisai": 3,
         "day": 4
+      },
+      {
+        "venue": "新潟",
+        "kaisai": 1,
+        "day": 2
       }
     ]
   },
@@ -16553,11 +16533,6 @@
     "date": "20260509",
     "venues": [
       {
-        "venue": "新潟",
-        "kaisai": 1,
-        "day": 3
-      },
-      {
         "venue": "東京",
         "kaisai": 2,
         "day": 5
@@ -16566,6 +16541,11 @@
         "venue": "京都",
         "kaisai": 3,
         "day": 5
+      },
+      {
+        "venue": "新潟",
+        "kaisai": 1,
+        "day": 3
       }
     ]
   },
@@ -16573,11 +16553,6 @@
     "date": "20260510",
     "venues": [
       {
-        "venue": "新潟",
-        "kaisai": 1,
-        "day": 4
-      },
-      {
         "venue": "東京",
         "kaisai": 2,
         "day": 6
@@ -16586,6 +16561,11 @@
         "venue": "京都",
         "kaisai": 3,
         "day": 6
+      },
+      {
+        "venue": "新潟",
+        "kaisai": 1,
+        "day": 4
       }
     ]
   },
@@ -16593,11 +16573,6 @@
     "date": "20260516",
     "venues": [
       {
-        "venue": "新潟",
-        "kaisai": 1,
-        "day": 5
-      },
-      {
         "venue": "東京",
         "kaisai": 2,
         "day": 7
@@ -16606,6 +16581,11 @@
         "venue": "京都",
         "kaisai": 3,
         "day": 7
+      },
+      {
+        "venue": "新潟",
+        "kaisai": 1,
+        "day": 5
       }
     ]
   },
@@ -16613,11 +16593,6 @@
     "date": "20260517",
     "venues": [
       {
-        "venue": "新潟",
-        "kaisai": 1,
-        "day": 6
-      },
-      {
         "venue": "東京",
         "kaisai": 2,
         "day": 8
@@ -16626,6 +16601,11 @@
         "venue": "京都",
         "kaisai": 3,
         "day": 8
+      },
+      {
+        "venue": "新潟",
+        "kaisai": 1,
+        "day": 6
       }
     ]
   },
@@ -16633,11 +16613,6 @@
     "date": "20260523",
     "venues": [
       {
-        "venue": "新潟",
-        "kaisai": 1,
-        "day": 7
-      },
-      {
         "venue": "東京",
         "kaisai": 2,
         "day": 9
@@ -16646,6 +16621,11 @@
         "venue": "京都",
         "kaisai": 3,
         "day": 9
+      },
+      {
+        "venue": "新潟",
+        "kaisai": 1,
+        "day": 7
       }
     ]
   },
@@ -16653,11 +16633,6 @@
     "date": "20260524",
     "venues": [
       {
-        "venue": "新潟",
-        "kaisai": 1,
-        "day": 8
-      },
-      {
         "venue": "東京",
         "kaisai": 2,
         "day": 10
@@ -16666,6 +16641,11 @@
         "venue": "京都",
         "kaisai": 3,
         "day": 10
+      },
+      {
+        "venue": "新潟",
+        "kaisai": 1,
+        "day": 8
       }
     ]
   },
@@ -16733,11 +16713,6 @@
     "date": "20260613",
     "venues": [
       {
-        "venue": "函館",
-        "kaisai": 1,
-        "day": 1
-      },
-      {
         "venue": "東京",
         "kaisai": 3,
         "day": 3
@@ -16746,6 +16721,11 @@
         "venue": "阪神",
         "kaisai": 3,
         "day": 3
+      },
+      {
+        "venue": "函館",
+        "kaisai": 1,
+        "day": 1
       }
     ]
   },
@@ -16753,11 +16733,6 @@
     "date": "20260614",
     "venues": [
       {
-        "venue": "函館",
-        "kaisai": 1,
-        "day": 2
-      },
-      {
         "venue": "東京",
         "kaisai": 3,
         "day": 4
@@ -16766,6 +16741,11 @@
         "venue": "阪神",
         "kaisai": 3,
         "day": 4
+      },
+      {
+        "venue": "函館",
+        "kaisai": 1,
+        "day": 2
       }
     ]
   },
@@ -16773,11 +16753,6 @@
     "date": "20260620",
     "venues": [
       {
-        "venue": "函館",
-        "kaisai": 1,
-        "day": 3
-      },
-      {
         "venue": "東京",
         "kaisai": 3,
         "day": 5
@@ -16786,6 +16761,11 @@
         "venue": "阪神",
         "kaisai": 3,
         "day": 5
+      },
+      {
+        "venue": "函館",
+        "kaisai": 1,
+        "day": 3
       }
     ]
   },
@@ -16793,11 +16773,6 @@
     "date": "20260621",
     "venues": [
       {
-        "venue": "函館",
-        "kaisai": 1,
-        "day": 4
-      },
-      {
         "venue": "東京",
         "kaisai": 3,
         "day": 6
@@ -16806,6 +16781,11 @@
         "venue": "阪神",
         "kaisai": 3,
         "day": 6
+      },
+      {
+        "venue": "函館",
+        "kaisai": 1,
+        "day": 4
       }
     ]
   },
@@ -16813,11 +16793,6 @@
     "date": "20260627",
     "venues": [
       {
-        "venue": "函館",
-        "kaisai": 1,
-        "day": 5
-      },
-      {
         "venue": "福島",
         "kaisai": 2,
         "day": 1
@@ -16826,6 +16801,11 @@
         "venue": "小倉",
         "kaisai": 2,
         "day": 1
+      },
+      {
+        "venue": "函館",
+        "kaisai": 1,
+        "day": 5
       }
     ]
   },
@@ -16833,11 +16813,6 @@
     "date": "20260628",
     "venues": [
       {
-        "venue": "函館",
-        "kaisai": 1,
-        "day": 6
-      },
-      {
         "venue": "福島",
         "kaisai": 2,
         "day": 2
@@ -16846,6 +16821,11 @@
         "venue": "小倉",
         "kaisai": 2,
         "day": 2
+      },
+      {
+        "venue": "函館",
+        "kaisai": 1,
+        "day": 6
       }
     ]
   },
@@ -16853,11 +16833,6 @@
     "date": "20260704",
     "venues": [
       {
-        "venue": "函館",
-        "kaisai": 1,
-        "day": 7
-      },
-      {
         "venue": "福島",
         "kaisai": 2,
         "day": 3
@@ -16866,6 +16841,11 @@
         "venue": "小倉",
         "kaisai": 2,
         "day": 3
+      },
+      {
+        "venue": "函館",
+        "kaisai": 1,
+        "day": 7
       }
     ]
   },
@@ -16873,11 +16853,6 @@
     "date": "20260705",
     "venues": [
       {
-        "venue": "函館",
-        "kaisai": 1,
-        "day": 8
-      },
-      {
         "venue": "福島",
         "kaisai": 2,
         "day": 4
@@ -16886,960 +16861,10 @@
         "venue": "小倉",
         "kaisai": 2,
         "day": 4
-      }
-    ]
-  },
-  {
-    "date": "20260711",
-    "venues": [
+      },
       {
         "venue": "函館",
         "kaisai": 1,
-        "day": 9
-      },
-      {
-        "venue": "福島",
-        "kaisai": 2,
-        "day": 5
-      },
-      {
-        "venue": "小倉",
-        "kaisai": 2,
-        "day": 5
-      }
-    ]
-  },
-  {
-    "date": "20260712",
-    "venues": [
-      {
-        "venue": "函館",
-        "kaisai": 1,
-        "day": 10
-      },
-      {
-        "venue": "福島",
-        "kaisai": 2,
-        "day": 6
-      },
-      {
-        "venue": "小倉",
-        "kaisai": 2,
-        "day": 6
-      }
-    ]
-  },
-  {
-    "date": "20260718",
-    "venues": [
-      {
-        "venue": "函館",
-        "kaisai": 1,
-        "day": 11
-      },
-      {
-        "venue": "福島",
-        "kaisai": 2,
-        "day": 7
-      },
-      {
-        "venue": "小倉",
-        "kaisai": 2,
-        "day": 7
-      }
-    ]
-  },
-  {
-    "date": "20260719",
-    "venues": [
-      {
-        "venue": "函館",
-        "kaisai": 1,
-        "day": 12
-      },
-      {
-        "venue": "福島",
-        "kaisai": 2,
-        "day": 8
-      },
-      {
-        "venue": "小倉",
-        "kaisai": 2,
-        "day": 8
-      }
-    ]
-  },
-  {
-    "date": "20260725",
-    "venues": [
-      {
-        "venue": "札幌",
-        "kaisai": 1,
-        "day": 1
-      },
-      {
-        "venue": "新潟",
-        "kaisai": 2,
-        "day": 1
-      },
-      {
-        "venue": "中京",
-        "kaisai": 2,
-        "day": 1
-      }
-    ]
-  },
-  {
-    "date": "20260726",
-    "venues": [
-      {
-        "venue": "札幌",
-        "kaisai": 1,
-        "day": 2
-      },
-      {
-        "venue": "新潟",
-        "kaisai": 2,
-        "day": 2
-      },
-      {
-        "venue": "中京",
-        "kaisai": 2,
-        "day": 2
-      }
-    ]
-  },
-  {
-    "date": "20260801",
-    "venues": [
-      {
-        "venue": "札幌",
-        "kaisai": 1,
-        "day": 3
-      },
-      {
-        "venue": "新潟",
-        "kaisai": 2,
-        "day": 3
-      },
-      {
-        "venue": "中京",
-        "kaisai": 2,
-        "day": 3
-      }
-    ]
-  },
-  {
-    "date": "20260802",
-    "venues": [
-      {
-        "venue": "札幌",
-        "kaisai": 1,
-        "day": 4
-      },
-      {
-        "venue": "新潟",
-        "kaisai": 2,
-        "day": 4
-      },
-      {
-        "venue": "中京",
-        "kaisai": 2,
-        "day": 4
-      }
-    ]
-  },
-  {
-    "date": "20260808",
-    "venues": [
-      {
-        "venue": "札幌",
-        "kaisai": 1,
-        "day": 5
-      },
-      {
-        "venue": "新潟",
-        "kaisai": 2,
-        "day": 5
-      },
-      {
-        "venue": "中京",
-        "kaisai": 2,
-        "day": 5
-      }
-    ]
-  },
-  {
-    "date": "20260809",
-    "venues": [
-      {
-        "venue": "札幌",
-        "kaisai": 1,
-        "day": 6
-      },
-      {
-        "venue": "新潟",
-        "kaisai": 2,
-        "day": 6
-      },
-      {
-        "venue": "中京",
-        "kaisai": 2,
-        "day": 6
-      }
-    ]
-  },
-  {
-    "date": "20260815",
-    "venues": [
-      {
-        "venue": "札幌",
-        "kaisai": 1,
-        "day": 7
-      },
-      {
-        "venue": "新潟",
-        "kaisai": 2,
-        "day": 7
-      },
-      {
-        "venue": "中京",
-        "kaisai": 2,
-        "day": 7
-      }
-    ]
-  },
-  {
-    "date": "20260816",
-    "venues": [
-      {
-        "venue": "札幌",
-        "kaisai": 1,
-        "day": 8
-      },
-      {
-        "venue": "新潟",
-        "kaisai": 2,
-        "day": 8
-      },
-      {
-        "venue": "中京",
-        "kaisai": 2,
-        "day": 8
-      }
-    ]
-  },
-  {
-    "date": "20260822",
-    "venues": [
-      {
-        "venue": "札幌",
-        "kaisai": 2,
-        "day": 1
-      },
-      {
-        "venue": "新潟",
-        "kaisai": 3,
-        "day": 1
-      },
-      {
-        "venue": "中京",
-        "kaisai": 3,
-        "day": 1
-      }
-    ]
-  },
-  {
-    "date": "20260823",
-    "venues": [
-      {
-        "venue": "札幌",
-        "kaisai": 2,
-        "day": 2
-      },
-      {
-        "venue": "新潟",
-        "kaisai": 3,
-        "day": 2
-      },
-      {
-        "venue": "中京",
-        "kaisai": 3,
-        "day": 2
-      }
-    ]
-  },
-  {
-    "date": "20260829",
-    "venues": [
-      {
-        "venue": "札幌",
-        "kaisai": 2,
-        "day": 3
-      },
-      {
-        "venue": "新潟",
-        "kaisai": 3,
-        "day": 3
-      },
-      {
-        "venue": "中京",
-        "kaisai": 3,
-        "day": 3
-      }
-    ]
-  },
-  {
-    "date": "20260830",
-    "venues": [
-      {
-        "venue": "札幌",
-        "kaisai": 2,
-        "day": 4
-      },
-      {
-        "venue": "新潟",
-        "kaisai": 3,
-        "day": 4
-      },
-      {
-        "venue": "中京",
-        "kaisai": 3,
-        "day": 4
-      }
-    ]
-  },
-  {
-    "date": "20260905",
-    "venues": [
-      {
-        "venue": "札幌",
-        "kaisai": 2,
-        "day": 5
-      },
-      {
-        "venue": "中山",
-        "kaisai": 4,
-        "day": 1
-      },
-      {
-        "venue": "阪神",
-        "kaisai": 4,
-        "day": 1
-      }
-    ]
-  },
-  {
-    "date": "20260906",
-    "venues": [
-      {
-        "venue": "札幌",
-        "kaisai": 2,
-        "day": 6
-      },
-      {
-        "venue": "中山",
-        "kaisai": 4,
-        "day": 2
-      },
-      {
-        "venue": "阪神",
-        "kaisai": 4,
-        "day": 2
-      }
-    ]
-  },
-  {
-    "date": "20260912",
-    "venues": [
-      {
-        "venue": "中山",
-        "kaisai": 4,
-        "day": 3
-      },
-      {
-        "venue": "阪神",
-        "kaisai": 4,
-        "day": 3
-      }
-    ]
-  },
-  {
-    "date": "20260913",
-    "venues": [
-      {
-        "venue": "中山",
-        "kaisai": 4,
-        "day": 4
-      },
-      {
-        "venue": "阪神",
-        "kaisai": 4,
-        "day": 4
-      }
-    ]
-  },
-  {
-    "date": "20260919",
-    "venues": [
-      {
-        "venue": "中山",
-        "kaisai": 4,
-        "day": 5
-      },
-      {
-        "venue": "阪神",
-        "kaisai": 4,
-        "day": 5
-      }
-    ]
-  },
-  {
-    "date": "20260920",
-    "venues": [
-      {
-        "venue": "中山",
-        "kaisai": 4,
-        "day": 6
-      },
-      {
-        "venue": "阪神",
-        "kaisai": 4,
-        "day": 6
-      }
-    ]
-  },
-  {
-    "date": "20260921",
-    "venues": [
-      {
-        "venue": "中山",
-        "kaisai": 4,
-        "day": 7
-      },
-      {
-        "venue": "阪神",
-        "kaisai": 4,
-        "day": 7
-      }
-    ]
-  },
-  {
-    "date": "20260926",
-    "venues": [
-      {
-        "venue": "中山",
-        "kaisai": 4,
-        "day": 8
-      },
-      {
-        "venue": "阪神",
-        "kaisai": 4,
-        "day": 8
-      }
-    ]
-  },
-  {
-    "date": "20260927",
-    "venues": [
-      {
-        "venue": "中山",
-        "kaisai": 4,
-        "day": 9
-      },
-      {
-        "venue": "阪神",
-        "kaisai": 4,
-        "day": 9
-      }
-    ]
-  },
-  {
-    "date": "20261003",
-    "venues": [
-      {
-        "venue": "東京",
-        "kaisai": 4,
-        "day": 1
-      },
-      {
-        "venue": "京都",
-        "kaisai": 4,
-        "day": 1
-      }
-    ]
-  },
-  {
-    "date": "20261004",
-    "venues": [
-      {
-        "venue": "東京",
-        "kaisai": 4,
-        "day": 2
-      },
-      {
-        "venue": "京都",
-        "kaisai": 4,
-        "day": 2
-      }
-    ]
-  },
-  {
-    "date": "20261010",
-    "venues": [
-      {
-        "venue": "東京",
-        "kaisai": 4,
-        "day": 3
-      },
-      {
-        "venue": "京都",
-        "kaisai": 4,
-        "day": 3
-      }
-    ]
-  },
-  {
-    "date": "20261011",
-    "venues": [
-      {
-        "venue": "東京",
-        "kaisai": 4,
-        "day": 4
-      },
-      {
-        "venue": "京都",
-        "kaisai": 4,
-        "day": 4
-      }
-    ]
-  },
-  {
-    "date": "20261012",
-    "venues": [
-      {
-        "venue": "東京",
-        "kaisai": 4,
-        "day": 5
-      },
-      {
-        "venue": "京都",
-        "kaisai": 4,
-        "day": 5
-      }
-    ]
-  },
-  {
-    "date": "20261017",
-    "venues": [
-      {
-        "venue": "新潟",
-        "kaisai": 4,
-        "day": 1
-      },
-      {
-        "venue": "東京",
-        "kaisai": 4,
-        "day": 6
-      },
-      {
-        "venue": "京都",
-        "kaisai": 4,
-        "day": 6
-      }
-    ]
-  },
-  {
-    "date": "20261018",
-    "venues": [
-      {
-        "venue": "新潟",
-        "kaisai": 4,
-        "day": 2
-      },
-      {
-        "venue": "東京",
-        "kaisai": 4,
-        "day": 7
-      },
-      {
-        "venue": "京都",
-        "kaisai": 4,
-        "day": 7
-      }
-    ]
-  },
-  {
-    "date": "20261024",
-    "venues": [
-      {
-        "venue": "新潟",
-        "kaisai": 4,
-        "day": 3
-      },
-      {
-        "venue": "東京",
-        "kaisai": 4,
-        "day": 8
-      },
-      {
-        "venue": "京都",
-        "kaisai": 4,
-        "day": 8
-      }
-    ]
-  },
-  {
-    "date": "20261025",
-    "venues": [
-      {
-        "venue": "新潟",
-        "kaisai": 4,
-        "day": 4
-      },
-      {
-        "venue": "東京",
-        "kaisai": 4,
-        "day": 9
-      },
-      {
-        "venue": "京都",
-        "kaisai": 4,
-        "day": 9
-      }
-    ]
-  },
-  {
-    "date": "20261031",
-    "venues": [
-      {
-        "venue": "東京",
-        "kaisai": 4,
-        "day": 10
-      },
-      {
-        "venue": "京都",
-        "kaisai": 4,
-        "day": 10
-      }
-    ]
-  },
-  {
-    "date": "20261101",
-    "venues": [
-      {
-        "venue": "東京",
-        "kaisai": 4,
-        "day": 11
-      },
-      {
-        "venue": "京都",
-        "kaisai": 4,
-        "day": 11
-      }
-    ]
-  },
-  {
-    "date": "20261107",
-    "venues": [
-      {
-        "venue": "福島",
-        "kaisai": 3,
-        "day": 1
-      },
-      {
-        "venue": "東京",
-        "kaisai": 5,
-        "day": 1
-      },
-      {
-        "venue": "京都",
-        "kaisai": 5,
-        "day": 1
-      }
-    ]
-  },
-  {
-    "date": "20261108",
-    "venues": [
-      {
-        "venue": "福島",
-        "kaisai": 3,
-        "day": 2
-      },
-      {
-        "venue": "東京",
-        "kaisai": 5,
-        "day": 2
-      },
-      {
-        "venue": "京都",
-        "kaisai": 5,
-        "day": 2
-      }
-    ]
-  },
-  {
-    "date": "20261114",
-    "venues": [
-      {
-        "venue": "福島",
-        "kaisai": 3,
-        "day": 3
-      },
-      {
-        "venue": "東京",
-        "kaisai": 5,
-        "day": 3
-      },
-      {
-        "venue": "京都",
-        "kaisai": 5,
-        "day": 3
-      }
-    ]
-  },
-  {
-    "date": "20261115",
-    "venues": [
-      {
-        "venue": "福島",
-        "kaisai": 3,
-        "day": 4
-      },
-      {
-        "venue": "東京",
-        "kaisai": 5,
-        "day": 4
-      },
-      {
-        "venue": "京都",
-        "kaisai": 5,
-        "day": 4
-      }
-    ]
-  },
-  {
-    "date": "20261121",
-    "venues": [
-      {
-        "venue": "福島",
-        "kaisai": 3,
-        "day": 5
-      },
-      {
-        "venue": "京都",
-        "kaisai": 5,
-        "day": 5
-      }
-    ]
-  },
-  {
-    "date": "20261122",
-    "venues": [
-      {
-        "venue": "東京",
-        "kaisai": 5,
-        "day": 5
-      },
-      {
-        "venue": "京都",
-        "kaisai": 5,
-        "day": 6
-      }
-    ]
-  },
-  {
-    "date": "20261123",
-    "venues": [
-      {
-        "venue": "福島",
-        "kaisai": 3,
-        "day": 6
-      },
-      {
-        "venue": "東京",
-        "kaisai": 5,
-        "day": 6
-      }
-    ]
-  },
-  {
-    "date": "20261128",
-    "venues": [
-      {
-        "venue": "東京",
-        "kaisai": 5,
-        "day": 7
-      },
-      {
-        "venue": "京都",
-        "kaisai": 5,
-        "day": 7
-      }
-    ]
-  },
-  {
-    "date": "20261129",
-    "venues": [
-      {
-        "venue": "東京",
-        "kaisai": 5,
-        "day": 8
-      },
-      {
-        "venue": "京都",
-        "kaisai": 5,
-        "day": 8
-      }
-    ]
-  },
-  {
-    "date": "20261205",
-    "venues": [
-      {
-        "venue": "中山",
-        "kaisai": 5,
-        "day": 1
-      },
-      {
-        "venue": "中京",
-        "kaisai": 4,
-        "day": 1
-      },
-      {
-        "venue": "阪神",
-        "kaisai": 5,
-        "day": 1
-      }
-    ]
-  },
-  {
-    "date": "20261206",
-    "venues": [
-      {
-        "venue": "中山",
-        "kaisai": 5,
-        "day": 2
-      },
-      {
-        "venue": "中京",
-        "kaisai": 4,
-        "day": 2
-      },
-      {
-        "venue": "阪神",
-        "kaisai": 5,
-        "day": 2
-      }
-    ]
-  },
-  {
-    "date": "20261212",
-    "venues": [
-      {
-        "venue": "中山",
-        "kaisai": 5,
-        "day": 3
-      },
-      {
-        "venue": "中京",
-        "kaisai": 4,
-        "day": 3
-      },
-      {
-        "venue": "阪神",
-        "kaisai": 5,
-        "day": 3
-      }
-    ]
-  },
-  {
-    "date": "20261213",
-    "venues": [
-      {
-        "venue": "中山",
-        "kaisai": 5,
-        "day": 4
-      },
-      {
-        "venue": "中京",
-        "kaisai": 4,
-        "day": 4
-      },
-      {
-        "venue": "阪神",
-        "kaisai": 5,
-        "day": 4
-      }
-    ]
-  },
-  {
-    "date": "20261219",
-    "venues": [
-      {
-        "venue": "中山",
-        "kaisai": 5,
-        "day": 5
-      },
-      {
-        "venue": "中京",
-        "kaisai": 4,
-        "day": 5
-      },
-      {
-        "venue": "阪神",
-        "kaisai": 5,
-        "day": 5
-      }
-    ]
-  },
-  {
-    "date": "20261220",
-    "venues": [
-      {
-        "venue": "中山",
-        "kaisai": 5,
-        "day": 6
-      },
-      {
-        "venue": "中京",
-        "kaisai": 4,
-        "day": 6
-      },
-      {
-        "venue": "阪神",
-        "kaisai": 5,
-        "day": 6
-      }
-    ]
-  },
-  {
-    "date": "20261226",
-    "venues": [
-      {
-        "venue": "中山",
-        "kaisai": 5,
-        "day": 7
-      },
-      {
-        "venue": "阪神",
-        "kaisai": 5,
-        "day": 7
-      }
-    ]
-  },
-  {
-    "date": "20261227",
-    "venues": [
-      {
-        "venue": "中山",
-        "kaisai": 5,
-        "day": 8
-      },
-      {
-        "venue": "阪神",
-        "kaisai": 5,
         "day": 8
       }
     ]
