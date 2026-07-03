@@ -658,10 +658,10 @@ async function loadShutubaMeta() {
       return;
     }
 
-    // 今日以降で最も近い日付を選択、なければ最新日付
+    // 今日以降で最も近い日付を選択（降順なので逆順でfind）、なければ最新日付
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    const nearest = shutubaMeta.find(m => m.date >= today);
-    dateEl.value = nearest ? nearest.date : shutubaMeta[shutubaMeta.length - 1].date;
+    const nearest = [...shutubaMeta].reverse().find(m => m.date >= today);
+    dateEl.value = nearest ? nearest.date : shutubaMeta[0].date;
 
     // 選択日付をロード
     await onShutubaDateChange();
