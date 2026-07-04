@@ -22,7 +22,7 @@ if git diff --cached --quiet; then
 fi
 
 git commit -m "ビューアデータ更新 $(date +%Y%m%d)"
-git push origin HEAD:main
+git push origin HEAD:main || (git fetch origin main && git rebase origin/main && git push origin HEAD:main)
 
 echo ""
 echo "=== デプロイ完了 ==="

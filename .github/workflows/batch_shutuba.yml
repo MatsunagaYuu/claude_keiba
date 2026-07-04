@@ -1,8 +1,6 @@
 name: Batch Shutuba (土曜自動更新)
 
 on:
-  schedule:
-    - cron: '0 0 * * 6'  # 土曜 09:00 JST
   workflow_dispatch:
     inputs:
       use_cache:
