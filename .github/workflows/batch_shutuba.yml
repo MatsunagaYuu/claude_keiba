@@ -1,6 +1,12 @@
-name: Batch Shutuba (土曜自動更新)
+name: Batch Shutuba (出馬表自動更新)
 
 on:
+  schedule:
+    - cron: '15 7 * * 1'  # 月曜 16:15 JST
+    - cron: '15 7 * * 4'  # 木曜 16:15 JST
+    - cron: '5 1 * * 5'   # 金曜 10:05 JST
+    - cron: '5 1 * * 6'   # 土曜 10:05 JST
+    - cron: '15 8 * * 0'  # 日曜 17:15 JST
   workflow_dispatch:
     inputs:
       use_cache:
@@ -26,13 +32,23 @@ jobs:
         run: npm ci
 
       - name: race_index キャッシュ復元（馬歴表示用）
-        if: ${{ inputs.use_cache != false }}
+        if: ${{ github.event_name == 'schedule' || inputs.use_cache != false }}
         uses: actions/cache/restore@v4
         with:
           path: race_index
           key: race-index-latest
           restore-keys: |
             race-index-
+
+      - name: race_index存在チェック（劣化データpush防止）
+        run: |
+          count=$(ls race_index/*.csv 2>/dev/null | wc -l | tr -d ' ')
+          echo "race_index files: $count"
+          if [ "$count" -lt 1000 ]; then
+            echo "ERROR: race_indexが不足しています ($count files)。キャッシュ復元に失敗している可能性があります。"
+            echo "馬歴なしで上書きしないよう中断します。"
+            exit 1
+          fi
 
       - name: 次の開催日を特定
         id: dates
@@ -67,5 +83,5 @@ jobs:
             echo "変更なし"
           else
             git commit -m "出馬表更新 $(date +%Y%m%d)"
-            git push
+            git push origin HEAD:main || (git fetch origin main && git rebase origin/main && git push origin HEAD:main)
           fi
