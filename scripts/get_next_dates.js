@@ -31,9 +31,11 @@ function main() {
       console.log(d);
     }
   } else {
-    // 今日以降の最も近い開催日群を返す
+    // 今日より後の最も近い開催日群を返す（当日は除外）
+    // 例: 土曜実行時→翌週土日ではなく当日を含む土日
+    //     日曜実行時→翌週土日
     const futureDates = calendar
-      .filter((d) => d.date >= todayStr)
+      .filter((d) => d.date > todayStr)
       .sort((a, b) => a.date.localeCompare(b.date));
 
     if (futureDates.length === 0) {
