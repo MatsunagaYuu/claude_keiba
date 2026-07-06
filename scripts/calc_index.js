@@ -2,13 +2,18 @@ const fs = require("fs");
 const path = require("path");
 
 const NAISEI_MODE = process.argv.includes("--naisei");
+const NO_CALIB = process.argv.includes("--no-calib");
 
 const BASE_TIMES_FILE = path.join(__dirname, "..", "base_times.json");
 const BABA_DIFF_FILE = path.join(__dirname, "..", "baba_diff.json");
 const EXT_BABA_FILE = path.join(__dirname, "..", "external_baba_diff.json");
 const CALENDAR_FILE = path.join(__dirname, "..", "kaisai_calendar.json");
+const CALIB_FILE = path.join(__dirname, "..", "venue_calibration.json");
 const RACE_RESULT_DIR = path.join(__dirname, "..", "race_result");
-const OUTPUT_DIR = path.join(__dirname, "..", NAISEI_MODE ? "race_index_naisei" : "race_index");
+const outdirIdx = process.argv.indexOf("--outdir");
+const OUTPUT_DIR = outdirIdx >= 0
+  ? path.join(__dirname, "..", process.argv[outdirIdx + 1])
+  : path.join(__dirname, "..", NAISEI_MODE ? "race_index_naisei" : "race_index");
 
 // 外部馬場差のダート距離スケーリング係数（回帰分析による）
 // ratio = DIRT_SCALE_A * dist + DIRT_SCALE_B
@@ -194,6 +199,21 @@ function main() {
     extBabaMap._calDateMap = calDateMap;
   }
 
+  // 会場×路面×距離帯キャリブレーション（venue_calibration.json 無し or --no-calib で現行挙動）
+  // 期間別offset: レース年で期間を特定、範囲外は最寄り期間にクランプ
+  // 距離帯は build_venue_calibration.js の bandOfDist と一致させること
+  const bandOfDist = d => (d <= 1400 ? "短" : d <= 2000 ? "中" : "長");
+  let calibPeriods = null;
+  if (!NO_CALIB && fs.existsSync(CALIB_FILE)) {
+    const calib = JSON.parse(fs.readFileSync(CALIB_FILE, "utf-8"));
+    calibPeriods = calib.periods.map(p => {
+      const map = {};
+      for (const o of p.offsets) map[`${o["芝/ダート"]}_${o.競馬場}_${o.距離帯}`] = o.offset;
+      return { from: p.from, to: p.to, map };
+    });
+    console.log(`Venue calibration loaded: ${calibPeriods.length} periods (generated ${calib.generated})`);
+  }
+
   if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR);
 
   const allFiles = fs.readdirSync(RACE_RESULT_DIR).filter((f) => f.endsWith(".csv"));
@@ -354,6 +374,14 @@ function main() {
     const courseStddev = bt.上がり標準偏差 || globalAvgStddev;
     const courseFactor = globalAvgStddev / courseStddev;
 
+    let calibOffset = 0;
+    if (calibPeriods) {
+      const y = parseInt(year);
+      const pd = calibPeriods.find(p => y >= p.from && y <= p.to)
+        || (y < calibPeriods[0].from ? calibPeriods[0] : calibPeriods[calibPeriods.length - 1]);
+      calibOffset = pd.map[`${surface}_${venue}_${bandOfDist(parseInt(dist))}`] || 0;
+    }
+
     // 先頭馬の前半タイム（脚溜め補正の基準）
     let leaderEarly = Infinity;
     for (const row of rows) {
@@ -392,7 +420,7 @@ function main() {
       const refBaseSec = bt.基準走破秒;
       const adjustedRef = refBaseSec + babaDiff;
       const timeDiff = adjustedRef - totalSec + weightAdj;
-      const totalIdx = Math.round(anchorIndex + timeDiff * factor);
+      const totalIdx = Math.round(anchorIndex + timeDiff * factor - calibOffset);
 
       // 上がり指数
       const anchorEarlyBase = bt.基準前半秒 + babaDiff * 0.6;
@@ -410,7 +438,7 @@ function main() {
 
       const agariWeight = getAgariWeight(surface, dist, ageClass);
       const combinedRaw = timeDiff + agariRaw * agariWeight;
-      const abilityIdx = Math.round(anchorIndex + combinedRaw * factor);
+      const abilityIdx = Math.round(anchorIndex + combinedRaw * factor - calibOffset);
       const last3fIdx = abilityIdx - totalIdx;
 
       indexedRows.push({

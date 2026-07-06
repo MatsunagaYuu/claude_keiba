@@ -11,6 +11,8 @@ JRAの競馬レースデータをスクレイピングし、独自の総合指�
 │   ├── build_baba_diff.js    # 馬場差生成 → baba_diff.json（現在未使用、外部馬場差に移行）
 │   ├── build_viewer_data.js  # ビューアデータ生成 → docs/data_YYYY.json
 │   ├── build_shutuba_data.js # 出馬表データ生成 → docs/shutuba_YYYYMMDD.json
+│   ├── build_venue_calibration.js # 会場×路面×距離帯補正の推定 → venue_calibration.json
+│   ├── verify_venue_calibration.js # 補正の検証（±120日窓・分割標本）
 │   ├── horse_history.js      # 馬別過去走確認CLI
 │   ├── scraper.js            # レース結果スクレイパー（puppeteer）
 │   ├── build_calendar_from_db.js # 開催カレンダー生成（DB版、推奨）
@@ -29,6 +31,7 @@ JRAの競馬レースデータをスクレイピングし、独自の総合指�
 ├── race_index/           # 指数算出済みCSV（calc_index.js出力）
 ├── shutuba/              # スクレイピング済み出馬表CSV
 ├── base_times.json       # 基準タイム（16クラス×会場×距離）
+├── venue_calibration.json # 会場×路面×距離帯×期間の指数補正offset
 ├── external_baba_diff.json # 外部馬場差データ（ittai.net、2018-2026）
 ├── kaisai_calendar.json  # 開催カレンダー
 ├── batch_result.sh       # レース結果バッチ（結果取得→指数→デプロイ）
@@ -64,6 +67,7 @@ node scripts/build_calendar_from_db.js 2026     # 指定年のみ
 - **馬場差なし**: 参考値フラグ（参考=1）を付与
 - **基準タイム**: base_times.json（年齢クラス×会場×距離、build_base_times.jsで生成）
 - **BTフォールバック**: サンプル不足時に3歳以上/4歳以上の同グレードにフォールバック。アンカー指数もフォールバック先に合わせる
+- **会場キャリブレーション**: venue_calibration.json の offset（会場×路面×距離帯×期間）を総合/能力指数から減算。同一馬±120日ペアのネットワーク最小二乗で推定（build_venue_calibration.js）。ファイル無し or `--no-calib` で無効（完全可逆）。再推定時は `--no-calib --outdir` で素の指数を作ってから行う
 
 ## データフロー
 
