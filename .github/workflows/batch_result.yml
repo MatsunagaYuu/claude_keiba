@@ -1,8 +1,9 @@
-name: Batch Result (月曜自動更新)
+# 注意: このワークフローは現状動作しない（フレッシュcheckoutに race_result/ が無く、
+# 基準タイム・内製馬場差が正しく計算できない）。結果バッチはローカルの ./batch_result.sh で運用する。
+# 2026-07-08 スケジュール実行を無効化（手動dispatchのみ残置）
+name: Batch Result (手動のみ・通常はローカル運用)
 
 on:
-  schedule:
-    - cron: '0 1 * * 1'  # 月曜 10:00 JST
   workflow_dispatch:
 
 permissions:
@@ -66,12 +67,6 @@ jobs:
 
       - name: ビューアデータ更新（差分マージ）
         run: node scripts/build_viewer_data.js --merge
-
-      - name: race_index キャッシュ保存（出馬表バッチ用）
-        uses: actions/cache/save@v4
-        with:
-          path: race_index
-          key: race-index-latest
 
       - name: Git push
         env:

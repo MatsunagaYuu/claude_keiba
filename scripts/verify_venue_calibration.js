@@ -10,7 +10,10 @@
 const fs = require("fs");
 const path = require("path");
 
-const RACE_INDEX_DIR = path.join(__dirname, "..", "race_index");
+const indirIdx = process.argv.indexOf("--indir");
+const RACE_INDEX_DIR = indirIdx >= 0
+  ? path.resolve(process.argv[indirIdx + 1])
+  : path.join(__dirname, "..", "race_index");
 const SINCE_YEAR = 2014;
 const WINDOW_DAYS = 120;
 const MIN_VERIFY_PAIRS = 300;

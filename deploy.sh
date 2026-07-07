@@ -5,15 +5,15 @@ cd "$(dirname "$0")"
 export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
 
 echo "=== ビューアデータビルド ==="
-node scripts/build_baba_diff.js
+# 注意: baba_diff.json は内製v2で管理（batch_result.sh が --append で更新）。ここで再生成しないこと
 node scripts/build_viewer_data.js
 node scripts/build_shutuba_data.js
 cp base_times.json docs/
 
 echo ""
 echo "=== Git push ==="
-git add docs/ external_baba_diff.json kaisai_calendar.json base_times.json
-git status --short docs/ external_baba_diff.json kaisai_calendar.json base_times.json
+git add docs/ baba_diff.json venue_calibration.json external_baba_diff.json kaisai_calendar.json base_times.json
+git status --short docs/ baba_diff.json venue_calibration.json external_baba_diff.json kaisai_calendar.json base_times.json
 
 # 変更がなければ終了
 if git diff --cached --quiet; then

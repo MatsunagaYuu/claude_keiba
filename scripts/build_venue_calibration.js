@@ -11,10 +11,14 @@
 // オプション:
 //   --fit-years even|odd  ペアを中間日の偶数/奇数年に限定（分割標本検証用）
 //   --out <file>          出力先変更（既定: venue_calibration.json）
+//   --indir <dir>         入力指定。再推定時は素の指数（calc_index --no-calib --outdir）を渡すこと
 const fs = require("fs");
 const path = require("path");
 
-const RACE_INDEX_DIR = path.join(__dirname, "..", "race_index");
+const indirIdx = process.argv.indexOf("--indir");
+const RACE_INDEX_DIR = indirIdx >= 0
+  ? path.resolve(process.argv[indirIdx + 1])
+  : path.join(__dirname, "..", "race_index");
 const fitYearsIdx = process.argv.indexOf("--fit-years");
 const FIT_YEARS = fitYearsIdx >= 0 ? process.argv[fitYearsIdx + 1] : "all";
 const outIdx = process.argv.indexOf("--out");

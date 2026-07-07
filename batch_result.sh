@@ -1,5 +1,5 @@
 #!/bin/bash
-# レース結果バッチ: スクレイピング → カレンダー更新 → 基準タイム → 外部馬場差 → 指数 → ビューア → デプロイ
+# レース結果バッチ: スクレイピング → カレンダー更新 → 基準タイム → 内製馬場差追記 → 指数 → ビューア → デプロイ
 # Usage: ./batch_result.sh [YYYYMMDD ...]
 #   引数なし: 直近開催日を自動特定（get_next_dates.js --last）
 #   引数あり: 指定日付のデータのみ処理（指数・ビューア更新を絞り込み）
@@ -45,14 +45,14 @@ echo "=== 基準タイム再計算 ==="
 node scripts/build_base_times.js
 
 echo ""
-echo "=== 外部馬場差取得 ==="
-for Y in $YEARS; do
-  node scripts/scrape_external_baba.js "$Y"
-done
+echo "=== 内製馬場差 追記 (対象日: $DATES) ==="
+# 切り戻し手順: このステップを外部馬場差取得（scrape_external_baba.js $YEARS のループ）に戻し、
+# 下の calc_index.js から --naisei を外す（venue_calibration.json もgit履歴から旧版に戻すこと）
+node scripts/build_baba_diff_v2.js --append $DATES
 
 echo ""
 echo "=== 指数算出 (対象日: $DATES) ==="
-node scripts/calc_index.js --date $DATES
+node scripts/calc_index.js --naisei --date $DATES
 
 echo ""
 echo "=== ビューアデータ更新 (対象年: $YEARS) ==="

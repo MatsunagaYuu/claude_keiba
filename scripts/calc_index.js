@@ -10,10 +10,11 @@ const EXT_BABA_FILE = path.join(__dirname, "..", "external_baba_diff.json");
 const CALENDAR_FILE = path.join(__dirname, "..", "kaisai_calendar.json");
 const CALIB_FILE = path.join(__dirname, "..", "venue_calibration.json");
 const RACE_RESULT_DIR = path.join(__dirname, "..", "race_result");
+// --naisei は馬場差ソースの切替のみ（出力先は常に race_index、切り戻しはフラグを外すだけ）
 const outdirIdx = process.argv.indexOf("--outdir");
 const OUTPUT_DIR = outdirIdx >= 0
   ? path.join(__dirname, "..", process.argv[outdirIdx + 1])
-  : path.join(__dirname, "..", NAISEI_MODE ? "race_index_naisei" : "race_index");
+  : path.join(__dirname, "..", "race_index");
 
 // 外部馬場差のダート距離スケーリング係数（回帰分析による）
 // ratio = DIRT_SCALE_A * dist + DIRT_SCALE_B
@@ -311,9 +312,12 @@ function main() {
 
     // 馬場差（外部/内製データ優先）
     let babaDiff = null;
-    const USE_EXT_BABA = true; // extBabaMap には --naisei 時は内製データが入る
     const calKey = `${year}_${venue}_${kaiNum}_${dayNum}`;
-    const raceDate = USE_EXT_BABA && extBabaMap._calDateMap && extBabaMap._calDateMap[calKey];
+    // 日付解決はCSVの日付列を優先（開催カレンダーは2018年以降しか無いためフォールバック扱い）
+    const csvDateM = (first["日付"] || "").match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
+    const raceDate = csvDateM
+      ? `${csvDateM[1]}/${csvDateM[2].padStart(2, "0")}/${csvDateM[3].padStart(2, "0")}`
+      : (extBabaMap._calDateMap && extBabaMap._calDateMap[calKey]);
     if (raceDate) {
       const d = parseInt(dist);
       const extKey = `${surface}_${raceDate}_${venue}`;
