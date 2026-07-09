@@ -124,6 +124,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 .venue-group-title { font-weight: 700; font-size: 14px; margin-bottom: 8px; color: #1a5c2a; }
+.venue-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.venue-tab {
+  padding: 6px 16px; border: 1px solid #1a5c2a; border-radius: 16px; background: #fff;
+  color: #1a5c2a; cursor: pointer; font-size: 13px; font-weight: 600;
+}
+.venue-tab:active { background: #f0f0f0; }
+.venue-tab.selected { background: #1a5c2a; color: #fff; }
 .race-menu { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
 .race-btn {
   padding: 6px 2px; border: 1px solid #ddd; border-radius: 6px; background: #fff;
@@ -290,6 +297,7 @@ let shutubaMeta = [];
 let shutubaData = [];
 const shutubaCache = {};
 let selectedShutubaRace = null;
+let selectedShutubaVenue = null;
 
 // 基準タイム用
 let baseTimesData = null;
@@ -687,6 +695,7 @@ async function onShutubaDateChange() {
     }
     shutubaData = shutubaCache[date];
     selectedShutubaRace = null;
+    selectedShutubaVenue = null;
     renderShutuba();
   } catch (e) {
     document.getElementById('race-list').innerHTML = '<div class="loading">読み込みエラー: ' + e.message + '</div>';
@@ -696,9 +705,9 @@ async function onShutubaDateChange() {
 function renderShutuba() {
   const list = document.getElementById('race-list');
   const statsEl = document.getElementById('stats');
-  statsEl.textContent = `${shutubaData.length}レース`;
 
   if (shutubaData.length === 0) {
+    statsEl.textContent = '';
     list.innerHTML = '<div class="no-results">該当なし</div>';
     return;
   }
@@ -710,24 +719,39 @@ function renderShutuba() {
     if (!byVenue[v]) byVenue[v] = [];
     byVenue[v].push(race);
   }
+  const venues = Object.keys(byVenue);
+
+  // 選択会場が未設定/無効なら先頭会場を自動選択
+  if (!selectedShutubaVenue || !byVenue[selectedShutubaVenue]) {
+    selectedShutubaVenue = venues[0];
+  }
+  const races = byVenue[selectedShutubaVenue];
+  races.sort((a, b) => a[SR.RACENUM] - b[SR.RACENUM]);
+  statsEl.textContent = `${selectedShutubaVenue} ${races.length}レース`;
 
   let html = '';
-  for (const [venue, races] of Object.entries(byVenue)) {
-    races.sort((a, b) => a[SR.RACENUM] - b[SR.RACENUM]);
-    html += `<div class="venue-group">`;
-    html += `<div class="venue-group-title">${venue}</div>`;
-    html += `<div class="race-menu">`;
-    for (const race of races) {
-      const id = race[SR.ID];
-      const sel = selectedShutubaRace === id ? ' selected' : '';
-      html += `<button class="race-btn${sel}" onclick="selectShutubaRace('${id}')">`;
-      html += `<span class="rnum">${race[SR.RACENUM]}R</span>`;
-      html += `<span class="rclass">${race[SR.SURFACE]}${race[SR.DIST]}m</span>`;
-      html += `<span class="rclass">${race[SR.CLASS]}</span>`;
-      html += `</button>`;
-    }
-    html += `</div></div>`;
+
+  // 会場チップ
+  html += `<div class="venue-tabs">`;
+  for (const v of venues) {
+    const sel = v === selectedShutubaVenue ? ' selected' : '';
+    html += `<button class="venue-tab${sel}" onclick="selectShutubaVenue('${v}')">${v}</button>`;
   }
+  html += `</div>`;
+
+  // 選択会場のレースメニュー
+  html += `<div class="venue-group">`;
+  html += `<div class="race-menu">`;
+  for (const race of races) {
+    const id = race[SR.ID];
+    const sel = selectedShutubaRace === id ? ' selected' : '';
+    html += `<button class="race-btn${sel}" onclick="selectShutubaRace('${id}')">`;
+    html += `<span class="rnum">${race[SR.RACENUM]}R</span>`;
+    html += `<span class="rclass">${race[SR.SURFACE]}${race[SR.DIST]}m</span>`;
+    html += `<span class="rclass">${race[SR.CLASS]}</span>`;
+    html += `</button>`;
+  }
+  html += `</div></div>`;
 
   // 選択中レースの馬テーブル
   if (selectedShutubaRace) {
@@ -758,6 +782,12 @@ function renderShutuba() {
   }
 
   list.innerHTML = html;
+}
+
+function selectShutubaVenue(venue) {
+  selectedShutubaVenue = venue;
+  selectedShutubaRace = null;
+  renderShutuba();
 }
 
 function selectShutubaRace(id) {
