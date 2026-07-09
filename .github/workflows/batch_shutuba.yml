@@ -1,12 +1,9 @@
-name: Batch Shutuba (出馬表自動更新)
+# 注意: Actionsスケジュールとローカル ./batch_shutuba.sh が両方 main に push すると
+# 実行タイミングが重なり競合する（2026-07-09に発生）。出馬表バッチはローカル運用に一本化する。
+# 2026-07-09 スケジュール実行を無効化（手動dispatchのみ残置）
+name: Batch Shutuba (手動のみ・通常はローカル運用)
 
 on:
-  schedule:
-    - cron: '15 7 * * 1'  # 月曜 16:15 JST
-    - cron: '15 7 * * 4'  # 木曜 16:15 JST
-    - cron: '5 1 * * 5'   # 金曜 10:05 JST
-    - cron: '5 1 * * 6'   # 土曜 10:05 JST
-    - cron: '15 8 * * 0'  # 日曜 17:15 JST
   workflow_dispatch:
     inputs:
       use_cache:

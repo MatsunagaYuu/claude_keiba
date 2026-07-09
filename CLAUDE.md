@@ -101,7 +101,9 @@ deploy.sh → GitHub Pages
 - race_result/ と race_index/ はgit管理外（.gitignore）
 - external_baba_diff.json は ittai.net からスクレイピング（切り戻し用に温存、更新停止）
 - baba_diff.json は内製馬場差（2026-07-08本採用）。過去日は凍結、週次バッチが --append で追記
-- 結果バッチのGitHub Actions（batch_result.yml）はスケジュール無効化済み。race_result/ がgit管理外のためActions上では基準タイム・馬場差を正しく計算できない。結果バッチはローカル ./batch_result.sh で運用
+- GitHub Actionsは全て廃止（スケジュール無効化済み・手動dispatchのみ残置）。バッチは全てローカル運用に一本化
+  - batch_result.yml: race_result/ がgit管理外のためActions上では基準タイム・馬場差を正しく計算できない → ローカル ./batch_result.sh で運用
+  - batch_shutuba.yml: Actionsスケジュールとローカル ./batch_shutuba.sh が両方 main に push すると実行タイミングが重なり競合する（2026-07-09に発生）→ ローカル ./batch_shutuba.sh で運用
 
 ## 開発ルール
 
