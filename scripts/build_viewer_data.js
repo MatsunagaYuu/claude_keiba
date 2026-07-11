@@ -4,7 +4,7 @@ const path = require("path");
 const INDEX_DIR = path.join(__dirname, "..", "race_index");
 const OUTPUT_DIR = path.join(__dirname, "..", "docs");
 const CALENDAR_FILE = path.join(__dirname, "..", "kaisai_calendar.json");
-const EXT_BABA_FILE = path.join(__dirname, "..", "external_baba_diff.json");
+const BABA_DIFF_FILE = path.join(__dirname, "..", "baba_diff.json");
 
 // 外部馬場差のダート距離スケーリング係数（回帰分析による）
 const DIRT_SCALE_A = 0.000425;
@@ -53,21 +53,21 @@ function main() {
     console.log(`Calendar: ${Object.keys(dateMap).length} venue-day mappings`);
   }
 
-  // 外部馬場差マップ: "surface_日付_競馬場" → レコード全体
-  const extBabaMap = {};
-  if (fs.existsSync(EXT_BABA_FILE)) {
-    const extData = JSON.parse(fs.readFileSync(EXT_BABA_FILE, "utf-8"));
-    for (const e of extData) {
+  // 内製馬場差マップ: "surface_日付_競馬場" → レコード全体
+  const babaMap = {};
+  if (fs.existsSync(BABA_DIFF_FILE)) {
+    const babaData = JSON.parse(fs.readFileSync(BABA_DIFF_FILE, "utf-8"));
+    for (const e of babaData) {
       if (e.芝馬場差 !== null) {
         const key = `芝_${e.日付}_${e.競馬場}`;
-        extBabaMap[key] = e;
+        babaMap[key] = e;
       }
       if (e.ダート馬場差 !== null) {
         const key = `ダート_${e.日付}_${e.競馬場}`;
-        extBabaMap[key] = e;
+        babaMap[key] = e;
       }
     }
-    console.log(`ExtBabaDiff: ${Object.keys(extBabaMap).length} entries`);
+    console.log(`BabaDiff (naisei): ${Object.keys(babaMap).length} entries`);
   }
 
   // --year YYYY [...] フィルタ: 指定年のファイルのみ処理
@@ -116,22 +116,26 @@ function main() {
     // レース番号（raceId末尾2桁）
     const raceNum = parseInt(raceId.substring(10, 12)) || 0;
 
-    // 馬場差ラベル（外部馬場差から距離別対応で生成）
+    // 馬場差ラベル（内製 baba_diff.json から距離別対応で生成）
+    // 日付解決は CSV の日付列を優先（kaisai_calendar は 2018+ しか無いので pre-2018 分をカバー）
     const surface = first["芝/ダート"] || "";
     let babaSpeed = "";
-    if (date) {
-      const dateStr = `${date.substring(0,4)}/${date.substring(4,6)}/${date.substring(6,8)}`;
-      const extKey = `${surface}_${dateStr}_${first["競馬場名"]}`;
-      const extRecord = extBabaMap[extKey];
-      if (extRecord) {
+    const csvDateM = (first["日付"] || "").match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
+    const babaDateStr = csvDateM
+      ? `${csvDateM[1]}/${csvDateM[2].padStart(2, "0")}/${csvDateM[3].padStart(2, "0")}`
+      : (date ? `${date.substring(0,4)}/${date.substring(4,6)}/${date.substring(6,8)}` : "");
+    if (babaDateStr) {
+      const babaKey = `${surface}_${babaDateStr}_${first["競馬場名"]}`;
+      const babaRecord = babaMap[babaKey];
+      if (babaRecord) {
         const dist = parseInt(first["距離"]);
         let displayVals = [];
 
         // レース別馬場差を優先
         // 二階層形式: {"芝": {R: 補正前値}, "ダート": {R: 補正前値}, "芝_1000": {R: 補正前値}, ...}
-        // 旧フラット形式: {R: 補正済み実数値} (後方互換)
-        if (extRecord.レース別馬場差) {
-          const raceMap = extRecord.レース別馬場差;
+        // 旧フラット形式: {R: 補正済み実数値} (後方互換・内製v2の現行フォーマット)
+        if (babaRecord.レース別馬場差) {
+          const raceMap = babaRecord.レース別馬場差;
           const raceNumStr = String(raceNum);
           const distKey = `${surface}_${dist}`;
           if (raceMap[distKey]?.[raceNumStr] !== undefined) {
@@ -150,16 +154,16 @@ function main() {
         }
         if (displayVals.length === 0 && surface === "ダート") {
           // ダート距離別馬場差がある場合
-          if (extRecord.ダート距離別馬場差 && extRecord.ダート距離別馬場差[dist]) {
-            displayVals.push(extRecord.ダート距離別馬場差[dist]);
-          } else if (extRecord.ダート馬場差 !== null) {
+          if (babaRecord.ダート距離別馬場差 && babaRecord.ダート距離別馬場差[dist]) {
+            displayVals.push(babaRecord.ダート距離別馬場差[dist]);
+          } else if (babaRecord.ダート馬場差 !== null) {
             // 距離別がない場合、全体値で距離補正（回帰フィット係数）
-            displayVals.push(extRecord.ダート馬場差 * (DIRT_SCALE_A * dist + DIRT_SCALE_B));
+            displayVals.push(babaRecord.ダート馬場差 * (DIRT_SCALE_A * dist + DIRT_SCALE_B));
           }
         } else if (displayVals.length === 0) {
           // 芝：常に距離補正
-          if (extRecord.芝馬場差 !== null) {
-            displayVals.push(extRecord.芝馬場差 * (dist / 2000));
+          if (babaRecord.芝馬場差 !== null) {
+            displayVals.push(babaRecord.芝馬場差 * (dist / 2000));
           }
         }
         // 複数の値がある場合は前後両方表示（例: "-1.9 → -1.6"）
