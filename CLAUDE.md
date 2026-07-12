@@ -16,8 +16,8 @@ JRAの競馬レースデータをスクレイピングし、独自の総合指�
 │   ├── verify_venue_calibration.js # 補正の検証（±120日窓・分割標本）
 │   ├── horse_history.js      # 馬別過去走確認CLI
 │   ├── scraper.js            # レース結果スクレイパー（puppeteer）
-│   ├── build_calendar_from_db.js # 開催カレンダー生成（DB版、推奨）
-│   ├── scrape_calendar.js    # 開催カレンダー取得（スクレイピング版、非推奨）
+│   ├── scrape_calendar.js    # 開催カレンダー取得（netkeibaスクレイピング版・本採用）
+│   ├── build_calendar_from_db.js # 開催カレンダー生成（DB版、DB廃止済みで非稼働・切り戻し用に温存）
 │   ├── scrape_external_baba.js # 外部馬場差取得（ittai.net、切り戻し用に温存）
 │   ├── scrape_result_by_date.js # 日付指定レース結果取得
 │   ├── scrape_shutuba.js     # 出馬表取得
@@ -60,9 +60,10 @@ node scripts/build_baba_diff_v2.js --append 20260704 20260705          # 指定�
 # 外部馬場差の更新（切り戻し時のみ）
 node scripts/scrape_external_baba.js 2026
 
-# 開催カレンダー更新（DB版、スクレイピング不要）
-node scripts/build_calendar_from_db.js          # 全期間
-node scripts/build_calendar_from_db.js 2026     # 指定年のみ
+# 開催カレンダー更新（本採用：netkeibaスクレイピング版）
+# 通常は batch_shutuba.sh が実行時に自動で当年を更新するため手動実行は不要
+node scripts/scrape_calendar.js 2026            # 指定年のみ（推奨）
+node scripts/scrape_calendar.js                 # 全期間（初回・大幅な再構築用）
 ```
 
 ## 指数計算の概要（calc_index.js）

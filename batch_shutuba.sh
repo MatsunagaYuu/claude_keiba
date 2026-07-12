@@ -8,6 +8,11 @@ set -e
 cd "$(dirname "$0")"
 export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
 
+echo "=== 開催カレンダー更新（$(date +%Y)年） ==="
+# scrape_calendar.js は netkeiba スクレイピング版。DB版(build_calendar_from_db.js)は
+# 2026-06 のDB廃止で動作しないためこちらを使用
+node scripts/scrape_calendar.js $(date +%Y)
+
 if [ $# -gt 0 ]; then
   DATES="$@"
 else
