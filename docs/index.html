@@ -320,8 +320,8 @@ const shutubaCache = {};
 let selectedShutubaRace = null;
 let selectedShutubaVenue = null;
 // 出馬表詳細のソート・フィルタ（レース切替時にリセット）
-let shutubaSortMode = 'gate';        // 'gate' | 'maxtotal' | 'avgability'
-let shutubaFilterMaxTotal = '';       // 数値文字列 or ''
+let shutubaSortMode = 'gate';        // 'gate' | 'maxability' | 'avgability'
+let shutubaFilterMaxAbility = '';       // 数値文字列 or ''
 let shutubaFilterAvgAbility = '';     // 数値文字列 or ''
 let shutubaFilterMode = 'AND';        // 'AND' | 'OR'
 
@@ -793,10 +793,10 @@ function renderShutuba() {
       html += `<div class="shutuba-controls">`;
       html += `<label>並び順 <select onchange="setShutubaSort(this.value)">`;
       html += sortOpt('gate', '枠順');
-      html += sortOpt('maxtotal', '過去5走 最高総合↓');
+      html += sortOpt('maxability', '過去5走 最高能力↓');
       html += sortOpt('avgability', '過去5走 平均能力↓');
       html += `</select></label>`;
-      html += `<label>最高総合 ≥ <input type="number" step="1" value="${shutubaFilterMaxTotal}" oninput="onShutubaFilterInput('max', this.value)"></label>`;
+      html += `<label>最高能力 ≥ <input type="number" step="1" value="${shutubaFilterMaxAbility}" oninput="onShutubaFilterInput('max', this.value)"></label>`;
       html += `<label>平均能力 ≥ <input type="number" step="1" value="${shutubaFilterAvgAbility}" oninput="onShutubaFilterInput('avg', this.value)"></label>`;
       html += `<span class="filter-mode-toggle">`;
       html += `<button data-mode="AND" class="${shutubaFilterMode==='AND'?'active':''}" onclick="setShutubaFilterMode('AND')">AND</button>`;
@@ -814,7 +814,7 @@ function renderShutuba() {
           return (parseInt(a.h[SH.NUM]) || 0) - (parseInt(b.h[SH.NUM]) || 0);
         });
       } else {
-        const key = shutubaSortMode === 'maxtotal' ? 'maxTotal' : 'avgAbility';
+        const key = shutubaSortMode === 'maxability' ? 'maxAbility' : 'avgAbility';
         indexed.sort((a, b) => {
           const va = a.st[key], vb = b.st[key];
           if (va === null && vb === null) return 0;
@@ -851,7 +851,7 @@ function renderShutuba() {
 
 function resetShutubaSortFilter() {
   shutubaSortMode = 'gate';
-  shutubaFilterMaxTotal = '';
+  shutubaFilterMaxAbility = '';
   shutubaFilterAvgAbility = '';
   shutubaFilterMode = 'AND';
 }
@@ -884,32 +884,32 @@ function setShutubaFilterMode(mode) {
 }
 
 function onShutubaFilterInput(kind, val) {
-  if (kind === 'max') shutubaFilterMaxTotal = val;
+  if (kind === 'max') shutubaFilterMaxAbility = val;
   else shutubaFilterAvgAbility = val;
   updateShutubaHighlight();
 }
 
-// 過去5走の指標統計（参考=1は除外、buildPastRacesと同じ方針）
+// 過去5走の能力指数統計（参考=1は除外、buildPastRacesと同じ方針）
 function horseStats(h) {
   const past = (h && h[SH.PAST]) || [];
-  const valid = past.filter(p => !p[SP.REF]);
-  const totals = valid.map(p => parseInt(p[SP.TOTAL])).filter(v => !isNaN(v));
-  const abilities = valid.map(p => parseInt(p[SP.ABILITY])).filter(v => !isNaN(v));
+  const abilities = past.filter(p => !p[SP.REF])
+    .map(p => parseInt(p[SP.ABILITY]))
+    .filter(v => !isNaN(v));
   return {
-    hasHistory: totals.length > 0 || abilities.length > 0,
-    maxTotal: totals.length ? Math.max(...totals) : null,
+    hasHistory: abilities.length > 0,
+    maxAbility: abilities.length ? Math.max(...abilities) : null,
     avgAbility: abilities.length ? abilities.reduce((a,b)=>a+b,0) / abilities.length : null,
   };
 }
 
 function shutubaFilterMatch(stats) {
-  const fMax = parseFloat(shutubaFilterMaxTotal);
+  const fMax = parseFloat(shutubaFilterMaxAbility);
   const fAvg = parseFloat(shutubaFilterAvgAbility);
   const hasMax = !isNaN(fMax);
   const hasAvg = !isNaN(fAvg);
   if (!hasMax && !hasAvg) return false;              // フィルタ未設定
   if (!stats.hasHistory) return true;                 // 出走履歴なしは常にハイライト
-  const maxOk = hasMax ? (stats.maxTotal !== null && stats.maxTotal >= fMax) : null;
+  const maxOk = hasMax ? (stats.maxAbility !== null && stats.maxAbility >= fMax) : null;
   const avgOk = hasAvg ? (stats.avgAbility !== null && stats.avgAbility >= fAvg) : null;
   if (hasMax && hasAvg) {
     return shutubaFilterMode === 'AND' ? (maxOk === true && avgOk === true) : (maxOk === true || avgOk === true);
@@ -932,20 +932,20 @@ function updateShutubaHighlight() {
 function buildPastRaces(pastRaces) {
   if (!pastRaces || pastRaces.length === 0) return '<span style="color:#999;font-size:11px">-</span>';
 
-  // 統計計算: 能力指数の平均・MAX、総合指数のMAX（参考フラグ付き除外）
-  const valid = pastRaces.filter(p => !p[SP.REF]);
-  const abilities = valid.map(p => parseInt(p[SP.ABILITY])).filter(v => !isNaN(v));
-  const totals = valid.map(p => parseInt(p[SP.TOTAL])).filter(v => !isNaN(v));
+  // 統計計算: 能力指数の平均とMAX（参考フラグ付き除外）
+  const abilities = pastRaces
+    .filter(p => !p[SP.REF])
+    .map(p => parseInt(p[SP.ABILITY]))
+    .filter(v => !isNaN(v));
 
   const avg = abilities.length
     ? (abilities.reduce((a, b) => a + b, 0) / abilities.length).toFixed(1)
     : '-';
   const maxAbility = abilities.length ? Math.max(...abilities) : '-';
-  const maxTotal = totals.length ? Math.max(...totals) : '-';
 
   // 外側コンテナで統計と過去走カードを縦に配置
   let html = '<div style="display:inline-block;vertical-align:middle;">';
-  html += `<div class="past-stats">過去5走: 平均能力 <span class="stat-value">${avg}</span> / 最高能力 <span class="stat-value">${maxAbility}</span> / 最高総合 <span class="stat-value">${maxTotal}</span></div>`;
+  html += `<div class="past-stats">過去5走: 平均能力 <span class="stat-value">${avg}</span> / 最高能力 <span class="stat-value">${maxAbility}</span></div>`;
 
   // 左が最新（reverseしない）
   html += '<div class="past-races">';
