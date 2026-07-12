@@ -16908,5 +16908,45 @@
         "day": 10
       }
     ]
+  },
+  {
+    "date": "20260718",
+    "venues": [
+      {
+        "venue": "福島",
+        "kaisai": 2,
+        "day": 7
+      },
+      {
+        "venue": "小倉",
+        "kaisai": 2,
+        "day": 7
+      },
+      {
+        "venue": "函館",
+        "kaisai": 1,
+        "day": 11
+      }
+    ]
+  },
+  {
+    "date": "20260719",
+    "venues": [
+      {
+        "venue": "福島",
+        "kaisai": 2,
+        "day": 8
+      },
+      {
+        "venue": "小倉",
+        "kaisai": 2,
+        "day": 8
+      },
+      {
+        "venue": "函館",
+        "kaisai": 1,
+        "day": 12
+      }
+    ]
   }
 ]
