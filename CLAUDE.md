@@ -22,6 +22,12 @@ JRAの競馬レースデータをスクレイピングし、独自の総合指�
 │   ├── scrape_result_by_date.js # 日付指定レース結果取得
 │   ├── scrape_shutuba.js     # 出馬表取得
 │   ├── get_next_dates.js     # 次回開催日取得
+│   ├── nar_scraper.js        # NAR（門別）レース結果スクレイパー（UTF-8/EUC-JP自動判別）
+│   ├── scrape_nar_result_by_date.js # NAR日付指定一括取得（カンマ区切り複数可・非開催日は自動スキップ）
+│   ├── build_nar_base_times.js # NAR基準タイム生成 → nar_base_times.json（距離別のみ・良馬場基準）
+│   ├── build_nar_baba_diff.js  # NAR内製馬場差 → nar_baba_diff.json（ALS同時分解のNAR移植版・--append対応）
+│   ├── calc_nar_index.js     # NAR指数算出 → nar_race_index/（総合指数のみ）
+│   ├── scrape_nar_shutuba.js / build_nar_shutuba_data.js # NAR出馬表（実験段階）
 │   └── old/                  # 分析・実験用（未使用）
 ├── docs/                 # GitHub Pages公開ディレクトリ
 │   ├── index.html            # ビューアSPA（単一HTML）
@@ -31,6 +37,10 @@ JRAの競馬レースデータをスクレイピングし、独自の総合指�
 ├── race_result/          # スクレイピング済みレース結果CSV
 ├── race_index/           # 指数算出済みCSV（calc_index.js出力）
 ├── shutuba/              # スクレイピング済み出馬表CSV
+├── nar_race_result/      # NAR（門別）レース結果CSV（git管理外）
+├── nar_race_index/       # NAR指数算出済みCSV（git管理外）
+├── nar_base_times.json   # NAR基準タイム（距離別）
+├── nar_baba_diff.json    # NAR内製馬場差（ALS版・JRA baba_diff.json と同形式）
 ├── base_times.json       # 基準タイム（16クラス×会場×距離）
 ├── venue_calibration.json # 会場×路面×距離帯×期間の指数補正offset
 ├── baba_diff.json        # 内製馬場差（2014-、日×会場×路面＋レース別。本採用中）
@@ -64,6 +74,15 @@ node scripts/scrape_external_baba.js 2026
 # 通常は batch_shutuba.sh が実行時に自動で当年を更新するため手動実行は不要
 node scripts/scrape_calendar.js 2026            # 指定年のみ（推奨）
 node scripts/scrape_calendar.js                 # 全期間（初回・大幅な再構築用）
+
+# NAR（門別）更新フロー（手動。門別は火水木開催・4月中旬〜11月上旬）
+node scripts/scrape_nar_result_by_date.js 20260714,20260715,20260716  # 結果取得
+node scripts/build_nar_baba_diff.js --append 20260714 20260715 20260716  # 馬場差追記（過去凍結）
+node scripts/calc_nar_index.js                  # 指数再計算（全件・数秒で完了）
+node scripts/build_viewer_data.js --year 2026   # ビューアデータ更新（門別も合流される）
+./deploy.sh
+# 馬場差の全期間一括再構築（node scripts/build_nar_baba_diff.js）後は、JRA同様に
+# 進行中半期の日が馬効果不足で歪むため、直近開催日を --append で上書きすること
 ```
 
 ## 指数計算の概要（calc_index.js）

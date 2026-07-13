@@ -2,6 +2,8 @@ const fs = require("fs");
 const path = require("path");
 
 const INDEX_DIR = path.join(__dirname, "..", "race_index");
+const NAR_INDEX_DIR = path.join(__dirname, "..", "nar_race_index");
+const NAR_BABA_FILE = path.join(__dirname, "..", "nar_baba_diff.json");
 const OUTPUT_DIR = path.join(__dirname, "..", "docs");
 const CALENDAR_FILE = path.join(__dirname, "..", "kaisai_calendar.json");
 const BABA_DIFF_FILE = path.join(__dirname, "..", "baba_diff.json");
@@ -183,6 +185,65 @@ function main() {
 
     if (!byYear[year]) byYear[year] = [];
     byYear[year].push(race);
+  }
+
+  // NAR（門別）: nar_race_index/ を同じレコード形式で合流
+  // race_id形式 {YYYY}{30}{MMDD}{RR}。CSVに日付列が無いのでIDから復元。
+  // 上がり指数・能力指数は未算出のため空。参考フラグは 補正=0（馬場差なし）のとき1
+  if (fs.existsSync(NAR_INDEX_DIR)) {
+    const narBabaMap = {};
+    if (fs.existsSync(NAR_BABA_FILE)) {
+      for (const e of JSON.parse(fs.readFileSync(NAR_BABA_FILE, "utf-8"))) narBabaMap[e.日付] = e;
+    }
+    const narFiles = fs.readdirSync(NAR_INDEX_DIR)
+      .filter(f => f.endsWith(".csv"))
+      .filter(f => !filterYears.size || filterYears.has(f.slice(6, 10)));
+    console.log(`NAR index files: ${narFiles.length}`);
+    for (const file of narFiles) {
+      const raceId = file.replace("index_", "").replace(".csv", "");
+      const rows = parseCSV(fs.readFileSync(path.join(NAR_INDEX_DIR, file), "utf-8"));
+      if (rows.length === 0) continue;
+      const first = rows[0];
+      const year = raceId.substring(0, 4);
+      const date = year + raceId.substring(6, 10);
+      const dateSlash = `${year}/${raceId.substring(6, 8)}/${raceId.substring(8, 10)}`;
+      const raceNum = parseInt(raceId.substring(10, 12)) || 0;
+
+      const horses = [];
+      for (const r of rows) {
+        const isRef = r["補正"] === "0";
+        horses.push([
+          r["着順"], r["枠番"], r["馬番"], r["馬名"], r["性齢"], r["斤量"],
+          r["騎手"], r["タイム"], r["着差"], "", r["上がり"],
+          r["人気"], r["単勝オッズ"],
+          r["総合指数"], "", "",
+          isRef ? "1" : "",
+        ]);
+      }
+
+      // 馬場差ラベル（レース別優先、無ければ日レベルを距離補正）
+      let babaSpeed = "";
+      const babaRec = narBabaMap[dateSlash];
+      if (babaRec) {
+        const dist = parseInt(first["距離"]);
+        let val = babaRec.レース別馬場差 && babaRec.レース別馬場差[String(raceNum)];
+        if (val === undefined || val === null) {
+          val = babaRec.ダート馬場差 !== null
+            ? babaRec.ダート馬場差 * (DIRT_SCALE_A * dist + DIRT_SCALE_B) : null;
+        }
+        babaSpeed = babaLabel(val);
+      }
+
+      const race = [
+        raceId, year, first["競馬場名"], first["開催"], first["開催日"],
+        first["クラス"], first["芝/ダート"], first["距離"],
+        first["天候"], first["馬場"], horses, date, raceNum, babaSpeed,
+        "",                        // 14: GRADE
+        first["レース名"] || "",   // 15: RACE_NAME
+      ];
+      if (!byYear[year]) byYear[year] = [];
+      byYear[year].push(race);
+    }
   }
 
   // 年ごとにファイル出力

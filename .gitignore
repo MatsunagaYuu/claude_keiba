@@ -1,10 +1,14 @@
 node_modules/
+log/
 race_result/
 race_result_fromDB/
 race_index/
 race_index_naisei/
 race_index_old/
 shutuba/
+nar_race_result/
+nar_race_index/
+nar_shutuba/
 reference/
 external_baba_diff_backup.json
 external_baba_diff_backup_v2.json
