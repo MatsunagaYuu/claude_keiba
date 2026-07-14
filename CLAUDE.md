@@ -76,10 +76,15 @@ node scripts/scrape_calendar.js 2026            # 指定年のみ（推奨）
 node scripts/scrape_calendar.js                 # 全期間（初回・大幅な再構築用）
 
 # NAR（門別）更新フロー（手動。門別は火水木開催・4月中旬〜11月上旬）
+# 結果側:
 node scripts/scrape_nar_result_by_date.js 20260714,20260715,20260716  # 結果取得
 node scripts/build_nar_baba_diff.js --append 20260714 20260715 20260716  # 馬場差追記（過去凍結）
 node scripts/calc_nar_index.js                  # 指数再計算（全件・数秒で完了）
 node scripts/build_viewer_data.js --year 2026   # ビューアデータ更新（門別も合流される）
+./deploy.sh
+# 出馬表側:
+node scripts/scrape_nar_shutuba.js 20260714     # 出馬表取得（1日ずつ）
+node scripts/build_shutuba_data.js --date 20260714 20260715  # JRA/門別とも同じ出力に合流
 ./deploy.sh
 # 馬場差の全期間一括再構築（node scripts/build_nar_baba_diff.js）後は、JRA同様に
 # 進行中半期の日が馬効果不足で歪むため、直近開催日を --append で上書きすること
