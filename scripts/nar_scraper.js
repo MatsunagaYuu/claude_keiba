@@ -171,7 +171,7 @@ function scrapeNarRaceResult(raceId) {
   console.log(`Saved: ${outputFile} (${rows.length} rows)`);
 }
 
-module.exports = { scrapeNarRaceResult };
+module.exports = { scrapeNarRaceResult, parseClass };
 
 // CLI direct execution
 if (require.main === module) {

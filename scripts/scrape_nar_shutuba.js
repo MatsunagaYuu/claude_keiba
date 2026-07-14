@@ -2,6 +2,7 @@ const cheerio = require("cheerio");
 const fs = require("fs");
 const path = require("path");
 const { execFileSync } = require("child_process");
+const { parseClass } = require("./nar_scraper");
 
 const OUTPUT_DIR = path.join(__dirname, "..", "nar_shutuba");
 const DELAY_MS = 500;
@@ -10,16 +11,17 @@ function sleep(ms) {
   execFileSync("sleep", [String(ms / 1000)]);
 }
 
-function fetchHTML(url, encoding = "euc-jp") {
+function fetchHTML(url) {
   try {
     const raw = execFileSync("curl", ["-s", "--max-time", "20", url], {
       maxBuffer: 10 * 1024 * 1024,
     });
-    if (encoding === "euc-jp") {
-      const decoder = new TextDecoder("euc-jp");
-      return decoder.decode(raw);
+    // nar.netkeiba.com は2026年5月頃にEUC-JP→UTF-8へ移行。両対応で自動判別
+    try {
+      return new TextDecoder("utf-8", { fatal: true }).decode(raw);
+    } catch {
+      return new TextDecoder("euc-jp").decode(raw);
     }
-    return raw.toString("utf-8");
   } catch (e) {
     console.error(`  Fetch failed: ${url}`);
     return null;
@@ -28,7 +30,7 @@ function fetchHTML(url, encoding = "euc-jp") {
 
 function getNarRaceIds(kaisaiDate) {
   const url = `https://nar.netkeiba.com/top/race_list_sub.html?kaisai_date=${kaisaiDate}`;
-  const html = fetchHTML(url, "utf-8");
+  const html = fetchHTML(url);
   if (!html) return [];
 
   const ids = [];
@@ -45,7 +47,7 @@ function getNarRaceIds(kaisaiDate) {
 
 function scrapeNarShutuba(raceId) {
   const url = `https://nar.netkeiba.com/race/shutuba.html?race_id=${raceId}`;
-  const html = fetchHTML(url, "euc-jp");
+  const html = fetchHTML(url);
   if (!html) return null;
 
   const $ = cheerio.load(html);
@@ -62,8 +64,8 @@ function scrapeNarShutuba(raceId) {
   const kaisai = kaisaiMatch ? `${kaisaiMatch[1]}回` : "";
   const nichime = dayMatch ? `${dayMatch[1]}日目` : "";
 
-  // クラス（レース名から推定）
-  const className = raceName;
+  // クラス（レース名から正規化: C4, B3, OP, 重賞, 新馬, 未勝利 など）
+  const className = parseClass(raceName);
 
   // 馬データ
   const horses = [];

@@ -3,6 +3,9 @@ const path = require("path");
 
 const INDEX_DIR = path.join(__dirname, "..", "race_index");
 const SHUTUBA_DIR = path.join(__dirname, "..", "shutuba");
+const NAR_INDEX_DIR = path.join(__dirname, "..", "nar_race_index");
+const NAR_SHUTUBA_DIR = path.join(__dirname, "..", "nar_shutuba");
+const NAR_BABA_FILE = path.join(__dirname, "..", "nar_baba_diff.json");
 const OUTPUT_DIR = path.join(__dirname, "..", "docs");
 const CALENDAR_FILE = path.join(__dirname, "..", "kaisai_calendar.json");
 const EXT_BABA_FILE = path.join(__dirname, "..", "external_baba_diff.json");
@@ -197,6 +200,80 @@ function main() {
     }
   }
 
+  // 1b. NAR（門別）の過去走を合流
+  // race_id形式 {YYYY}{30}{MMDD}{RR}。CSVに日付列が無いのでIDから復元。
+  // 能力指数は未算出のため空（ビューア側で総合指数にフォールバック表示）
+  if (fs.existsSync(NAR_INDEX_DIR)) {
+    const narBabaMap = {};
+    if (fs.existsSync(NAR_BABA_FILE)) {
+      for (const e of JSON.parse(fs.readFileSync(NAR_BABA_FILE, "utf-8"))) narBabaMap[e.日付] = e;
+    }
+    const narIndexFiles = fs.readdirSync(NAR_INDEX_DIR).filter((f) => f.endsWith(".csv"));
+    console.log(`  NAR index files: ${narIndexFiles.length}`);
+    for (const file of narIndexFiles) {
+      const raceId = file.replace("index_", "").replace(".csv", "");
+      const rows = parseCSV(fs.readFileSync(path.join(NAR_INDEX_DIR, file), "utf-8"));
+      if (rows.length === 0) continue;
+      const first = rows[0];
+      const date = raceId.substring(0, 4) + raceId.substring(6, 10);
+      const dateSlash = `${raceId.substring(0, 4)}/${raceId.substring(6, 8)}/${raceId.substring(8, 10)}`;
+      const raceNum = parseInt(raceId.substring(10, 12)) || 0;
+
+      // 馬場差ラベル（レース別優先、無ければ日レベルを距離補正）
+      let babaSpeed = "";
+      const babaRec = narBabaMap[dateSlash];
+      if (babaRec) {
+        const dist = parseInt(first["距離"]);
+        let val = babaRec.レース別馬場差 && babaRec.レース別馬場差[String(raceNum)];
+        if (val === undefined || val === null) {
+          val = babaRec.ダート馬場差 !== null
+            ? babaRec.ダート馬場差 * (DIRT_SCALE_A * dist + DIRT_SCALE_B) : null;
+        }
+        babaSpeed = babaLabel(val);
+      }
+
+      const winnerRow = rows.find(r => r["着順"] === "1");
+      const secondRow = rows.find(r => r["着順"] === "2");
+      for (const r of rows) {
+        const name = r["馬名"];
+        if (!name) continue;
+        if (!horseHistory[name]) horseHistory[name] = [];
+
+        const refRow = r["着順"] === "1" ? secondRow : winnerRow;
+        let margin = "";
+        const thisTime = timeToSec(r["タイム"]);
+        const refTime = refRow ? timeToSec(refRow["タイム"]) : null;
+        if (thisTime !== null && refTime !== null) {
+          const diff = thisTime - refTime;
+          margin = (diff > 0 ? "+" : "") + diff.toFixed(1);
+        }
+
+        horseHistory[name].push({
+          raceId,
+          date,
+          venue: first["競馬場名"],
+          dist: first["距離"],
+          surface: first["芝/ダート"],
+          cond: first["馬場"],
+          rank: r["着順"],
+          totalIdx: r["総合指数"],
+          abilityIdx: "",
+          time: r["タイム"],
+          last3f: r["上がり"],
+          babaSpeed,
+          passing: "",
+          ref: r["補正"] === "0" ? "1" : "",
+          jockey: r["騎手"] || "",
+          weight: r["斤量"] || "",
+          gate: r["枠番"] || "",
+          pop: r["人気"] || "",
+          refHorse: refRow ? refRow["馬名"] : "",
+          margin,
+        });
+      }
+    }
+  }
+
   // 各馬の過去走を日付降順でソート & (date, venue) 重複除去
   // 同一レースが旧scraper形式と新DB形式の2つのraceIdで存在する場合の対策
   for (const name in horseHistory) {
@@ -267,6 +344,42 @@ function main() {
 
     if (!byDate[date]) byDate[date] = [];
     byDate[date].push(race);
+  }
+
+  // 2b. NAR（門別）の出馬表を合流（日付はraceIdから復元、カレンダー不要）
+  if (fs.existsSync(NAR_SHUTUBA_DIR)) {
+    const narShutubaFiles = fs.readdirSync(NAR_SHUTUBA_DIR).filter((f) => f.endsWith(".csv"));
+    console.log(`NAR shutuba files: ${narShutubaFiles.length}`);
+    for (const file of narShutubaFiles) {
+      const raceId = file.replace("shutuba_", "").replace(".csv", "");
+      const rows = parseCSV(fs.readFileSync(path.join(NAR_SHUTUBA_DIR, file), "utf-8"));
+      if (rows.length === 0) continue;
+      const first = rows[0];
+      const date = raceId.substring(0, 4) + raceId.substring(6, 10);
+      const raceNum = parseInt(raceId.substring(10, 12)) || 0;
+
+      const horses = [];
+      for (const r of rows) {
+        const history = horseHistory[r["馬名"]] || [];
+        const past5 = history.slice(0, 5).map((h) => [
+          h.date, h.venue, h.dist, h.surface, h.cond, h.rank, h.totalIdx, h.abilityIdx,
+          h.babaSpeed, h.time, h.last3f, h.raceId, h.passing, h.ref || "",
+          h.jockey || "", h.weight || "", h.gate || "", h.pop || "",
+          h.refHorse || "", h.margin || "",
+        ]);
+        horses.push([
+          r["枠番"], r["馬番"], r["馬名"], r["性齢"], r["斤量"], r["騎手"],
+          past5,
+        ]);
+      }
+
+      const race = [
+        raceId, first["競馬場名"], raceNum, first["クラス"],
+        first["芝/ダート"], first["距離"], horses,
+      ];
+      if (!byDate[date]) byDate[date] = [];
+      byDate[date].push(race);
+    }
   }
 
   // 各日付のレースをレース番号順でソート & 出力

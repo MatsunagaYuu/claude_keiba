@@ -893,7 +893,7 @@ function onShutubaFilterInput(kind, val) {
 function horseStats(h) {
   const past = (h && h[SH.PAST]) || [];
   const abilities = past.filter(p => !p[SP.REF])
-    .map(p => parseInt(p[SP.ABILITY]))
+    .map(p => parseInt(p[SP.ABILITY] || p[SP.TOTAL]))  // NAR（門別）は能力指数未算出→総合指数で代用
     .filter(v => !isNaN(v));
   return {
     hasHistory: abilities.length > 0,
@@ -935,7 +935,7 @@ function buildPastRaces(pastRaces) {
   // 統計計算: 能力指数の平均とMAX（参考フラグ付き除外）
   const abilities = pastRaces
     .filter(p => !p[SP.REF])
-    .map(p => parseInt(p[SP.ABILITY]))
+    .map(p => parseInt(p[SP.ABILITY] || p[SP.TOTAL]))  // NAR（門別）は能力指数未算出→総合指数で代用
     .filter(v => !isNaN(v));
 
   const avg = abilities.length
@@ -950,7 +950,7 @@ function buildPastRaces(pastRaces) {
   // 左が最新（reverseしない）
   html += '<div class="past-races">';
   for (const p of pastRaces) {
-    const ability = parseInt(p[SP.ABILITY]);
+    const ability = parseInt(p[SP.ABILITY] || p[SP.TOTAL]);  // NARは総合指数で代用
     const cls = isNaN(ability) ? 'idx-low' : idxClass(ability);
     const d = p[SP.DATE] || '';
     const dateStr = d ? `${d.substring(2,4)}/${d.substring(4,6)}/${d.substring(6,8)}` : '';
