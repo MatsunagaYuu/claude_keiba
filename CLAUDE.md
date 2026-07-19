@@ -22,12 +22,13 @@ JRAの競馬レースデータをスクレイピングし、独自の総合指�
 │   ├── scrape_result_by_date.js # 日付指定レース結果取得
 │   ├── scrape_shutuba.js     # 出馬表取得
 │   ├── get_next_dates.js     # 次回開催日取得
-│   ├── nar_scraper.js        # NAR（門別）レース結果スクレイパー（UTF-8/EUC-JP自動判別）
-│   ├── scrape_nar_result_by_date.js # NAR日付指定一括取得（カンマ区切り複数可・非開催日は自動スキップ）
-│   ├── build_nar_base_times.js # NAR基準タイム生成 → nar_base_times.json（距離別のみ・良馬場基準）
-│   ├── build_nar_baba_diff.js  # NAR内製馬場差 → nar_baba_diff.json（ALS同時分解のNAR移植版・--append対応）
-│   ├── calc_nar_index.js     # NAR指数算出 → nar_race_index/（総合指数のみ）
-│   ├── scrape_nar_shutuba.js / build_nar_shutuba_data.js # NAR出馬表（実験段階）
+│   ├── nar_scraper.js        # NARレース結果スクレイパー（UTF-8/EUC-JP自動判別。NAR_ACTIVE_CODES で対象会場管理）
+│   ├── scrape_nar_result_by_date.js # NAR日付指定一括取得（race_list駆動・対象会場のみ・非開催日は自動スキップ）
+│   ├── build_nar_base_times.js # NAR基準タイム生成 → nar_base_times.json（会場×路面×距離・良馬場基準）
+│   ├── build_nar_baba_diff.js  # NAR内製馬場差 → nar_baba_diff.json（ALS・日×会場×路面ノード・--append対応）
+│   ├── calc_nar_index.js     # NAR指数算出 → nar_race_index/（総合指数のみ。会場間の絶対比較は未キャリブレーション）
+│   ├── scrape_nar_shutuba.js # NAR出馬表取得（対象会場を日付一括）
+│   ├── build_nar_shutuba_data.js # NAR出馬表Discord用（実験・非稼働）
 │   └── old/                  # 分析・実験用（未使用）
 ├── docs/                 # GitHub Pages公開ディレクトリ
 │   ├── index.html            # ビューアSPA（単一HTML）
@@ -75,7 +76,9 @@ node scripts/scrape_external_baba.js 2026
 node scripts/scrape_calendar.js 2026            # 指定年のみ（推奨）
 node scripts/scrape_calendar.js                 # 全期間（初回・大幅な再構築用）
 
-# NAR（門別）更新フロー（手動。門別は火水木開催・4月中旬〜11月上旬）
+# NAR更新フロー（手動）
+# 対応会場: 門別・盛岡・水沢・浦和・船橋・大井・川崎（nar_scraper.js の NAR_ACTIVE_CODES で管理）
+# 結果は2023/4以降を取得済み。日付を渡せば開催のある対象会場だけ自動で取得される
 # 結果側:
 node scripts/scrape_nar_result_by_date.js 20260714,20260715,20260716  # 結果取得
 node scripts/build_nar_baba_diff.js --append 20260714 20260715 20260716  # 馬場差追記（過去凍結）
