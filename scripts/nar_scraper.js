@@ -182,7 +182,7 @@ const NAR_VENUES = {
   "45": "川崎",
 };
 // 現在スクレイピング対象にしている会場
-const NAR_ACTIVE_CODES = ["30", "35", "36", "44"];
+const NAR_ACTIVE_CODES = ["30", "35", "36", "42", "43", "44", "45"];
 
 module.exports = { scrapeNarRaceResult, parseClass, NAR_VENUES, NAR_ACTIVE_CODES };
 
