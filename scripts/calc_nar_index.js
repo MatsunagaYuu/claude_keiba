@@ -6,16 +6,24 @@ const OUTPUT_DIR = path.join(__dirname, "..", "nar_race_index");
 const BASE_TIMES_FILE = path.join(__dirname, "..", "nar_base_times.json");
 const BABA_DIFF_FILE = path.join(__dirname, "..", "nar_baba_diff.json");
 
-// 距離別アンカー指数
+// 距離別アンカー指数（全会場共通・暫定。会場間の水準差は基準タイムが会場別のため
+// 指数には現れない＝会場をまたぐ絶対比較は未キャリブレーション。転厩馬データが
+// 溜まったら会場offsetを推定して補正する想定）
 const ANCHOR_BY_DIST = {
+  850: 242,
   1000: 245,
   1100: 245,
   1200: 250,
+  1300: 253,
+  1400: 255,
   1500: 260,
   1600: 260,
+  1650: 260,
   1700: 260,
   1800: 260,
+  1900: 263,
   2000: 265,
+  2400: 265,
   2600: 265,
 };
 const DEFAULT_ANCHOR = 260;
@@ -58,15 +66,15 @@ function extractDate(filename) {
 }
 
 function main() {
-  // 基準タイム読み込み
+  // 基準タイム読み込み（会場×路面×距離）
   const baseTimes = JSON.parse(fs.readFileSync(BASE_TIMES_FILE, "utf-8"));
   const btMap = {};
-  for (const b of baseTimes) btMap[b.距離] = b;
+  for (const b of baseTimes) btMap[`${b.競馬場}_${b["芝/ダート"]}_${b.距離}`] = b;
 
-  // 馬場差読み込み
+  // 馬場差読み込み（日付×会場）
   const babaDiff = JSON.parse(fs.readFileSync(BABA_DIFF_FILE, "utf-8"));
   const babaMap = {};
-  for (const b of babaDiff) babaMap[b.日付] = b;
+  for (const b of babaDiff) babaMap[`${b.日付}_${b.競馬場}`] = b;
 
   // 出力ディレクトリ
   if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR);
@@ -81,12 +89,14 @@ function main() {
     const rows = parseCSV(content);
     if (rows.length === 0) { skipped++; continue; }
 
+    const venue = rows[0]["競馬場名"];
+    const surface = rows[0]["芝/ダート"];
     const dist = parseInt(rows[0]["距離"]);
-    const bt = btMap[dist];
+    const bt = btMap[`${venue}_${surface}_${dist}`];
     if (!bt) { skipped++; continue; }
 
     const date = extractDate(file);
-    const baba = babaMap[date];
+    const baba = babaMap[`${date}_${venue}`];
     const raceNum = parseInt(file.replace("result_", "").substring(10, 12)) || 0;
 
     // factor: 距離スケーリング
@@ -97,13 +107,19 @@ function main() {
     // レース別馬場差（距離補正済み秒）を最優先、無ければ日レベルを距離補正
     let babaDiff = 0, hasBaba = false;
     if (baba) {
+      const dayVal = surface === "芝" ? baba.芝馬場差 : baba.ダート馬場差;
       const raceVal = baba.レース別馬場差 && baba.レース別馬場差[String(raceNum)];
       if (raceVal !== undefined && raceVal !== null) {
         babaDiff = raceVal;
-      } else if (baba.ダート馬場差 !== null && baba.ダート馬場差 !== undefined) {
-        babaDiff = baba.ダート馬場差 * (DIRT_SCALE_A * dist + DIRT_SCALE_B);
+        hasBaba = true;
+      } else if (dayVal !== null && dayVal !== undefined) {
+        babaDiff = surface === "ダート"
+          ? dayVal * (DIRT_SCALE_A * dist + DIRT_SCALE_B)
+          : dayVal * (dist / 2000);
+        hasBaba = true;
+      } else {
+        noBaba++;
       }
-      hasBaba = true;
     } else {
       noBaba++;
     }

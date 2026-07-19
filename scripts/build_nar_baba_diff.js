@@ -1,9 +1,10 @@
-// 門別内製馬場差: 馬効果と日次馬場差の同時推定（交互最小二乗）
-// build_baba_diff_v2.js のNAR門別移植版。タイム偏差（斤量補正・距離正規化済み）を
-//   偏差 ≈ 馬効果（馬×半年ブロック） + 日効果（日） + レース効果 + ノイズ
-// に分解する。門別は単一会場・ダートのみなのでノードは日付のみ。
-// 基準タイムは距離別のみ（クラス無し）だが、クラス質の差は馬効果が吸収する。
-// 出力はJRA baba_diff.json と同形式（芝馬場差=null固定）。水準定数は無し（平均≈0）。
+// NAR内製馬場差: 馬効果と日次馬場差の同時推定（交互最小二乗）
+// build_baba_diff_v2.js のNAR移植版。タイム偏差（斤量補正・距離正規化済み）を
+//   偏差 ≈ 馬効果（馬×半年ブロック） + 日効果（日×会場×路面） + レース効果 + ノイズ
+// に分解する。対象会場は nar_race_result/ にある全会場（門別・大井・盛岡・水沢など）。
+// 基準タイムは会場×路面×距離（クラス無し）だが、クラス質の差は馬効果が吸収する。
+// 会場間を転厩馬の馬効果が接続するため、日効果の会場間水準も同時に推定される。
+// 出力はJRA baba_diff.json と同形式。水準定数は無し（馬効果加重平均=0の制約で固定）。
 // 使い方:
 //   node scripts/build_nar_baba_diff.js                      # 全期間一括 → nar_baba_diff.json
 //   node scripts/build_nar_baba_diff.js --fit-horses even    # 馬分割標本（汎化評価用）
@@ -93,7 +94,7 @@ function dateToDays(dateStr) {
 function main() {
   const baseTimes = JSON.parse(fs.readFileSync(BASE_TIMES_FILE, "utf-8"));
   const btMap = {};
-  for (const bt of baseTimes) btMap[bt.距離] = bt;
+  for (const bt of baseTimes) btMap[`${bt.競馬場}_${bt["芝/ダート"]}_${bt.距離}`] = bt;
 
   const windowMin = APPEND_DATES ? dateToDays(APPEND_DATES[0]) - APPEND_WINDOW_DAYS : null;
   const windowMax = APPEND_DATES ? dateToDays(APPEND_DATES[APPEND_DATES.length - 1]) : null;
@@ -107,9 +108,12 @@ function main() {
     const rows = parseCSV(fs.readFileSync(path.join(RACE_RESULT_DIR, file), "utf-8"));
     if (rows.length === 0) { skippedRaces++; continue; }
     const first = rows[0];
+    const venue = first["競馬場名"];
+    const surface = first["芝/ダート"];
     const dist = parseInt(first["距離"]);
-    const bt = btMap[dist];
-    if (isNaN(dist) || !bt) { skippedRaces++; continue; }
+    if ((surface !== "芝" && surface !== "ダート") || isNaN(dist)) { skippedRaces++; continue; }
+    const bt = btMap[`${venue}_${surface}_${dist}`];
+    if (!bt) { skippedRaces++; continue; }
     const rid = file.replace("result_", "").replace(".csv", "");
     const date = dateFromRaceId(rid);
     if (APPEND_DATES) {
@@ -117,10 +121,11 @@ function main() {
       if (dn <= windowMin || dn > windowMax) continue;
     }
 
-    const scale = DIRT_SCALE_A * dist + DIRT_SCALE_B;
+    const scale = surface === "ダート" ? (DIRT_SCALE_A * dist + DIRT_SCALE_B) : (dist / 2000);
     const year = date.slice(0, 4);
     const half = parseInt(date.slice(5, 7)) <= 6 ? "H1" : "H2";
-    raceMeta[rid] = { date, raceNum: parseInt(rid.substring(10, 12)), scale };
+    const node = `${surface}_${date}_${venue}`;
+    raceMeta[rid] = { date, venue, surface, raceNum: parseInt(rid.substring(10, 12)), scale, node };
 
     for (const row of rows) {
       if (!/^\d+$/.test(row["着順"])) continue;
@@ -134,7 +139,7 @@ function main() {
       const weightAdj = (weight - BASE_WEIGHT) * WEIGHT_FACTOR * (dist / 2000);
       const y = (sec - weightAdj - bt.基準走破秒) / scale;
       if (Math.abs(y) > CLIP) { clipped++; continue; }
-      obs.push({ block: APPEND_DATES ? name : `${name}_${year}${half}`, node: date, race: rid, y });
+      obs.push({ block: APPEND_DATES ? name : `${name}_${year}${half}`, node, race: rid, y });
     }
   }
   console.log(`観測数: ${obs.length}, クリップ除外: ${clipped}, スキップレース: ${skippedRaces}, fitHorses=${FIT_HORSES}`);
@@ -198,21 +203,28 @@ function main() {
   }
   console.log(`ALS収束: ${iter}回, maxDelta=${maxDelta.toFixed(4)}`);
 
-  // 出力（JRA baba_diff.json 互換形式）
+  // 出力（JRA baba_diff.json 互換形式: 日付×会場レコード、路面別フィールド）
   const records = {};
-  for (const [date, j] of nodeIdx) {
+  for (const [nodeKey, j] of nodeIdx) {
+    const [surface, date, venue] = nodeKey.split("_");
     if (APPEND_DATES && !APPEND_DATES.includes(date)) continue;
-    records[date] = {
-      年: parseInt(date.slice(0, 4)), 競馬場: "門別", 日付: date,
-      芝馬場差: null, ダート馬場差: parseFloat(b[j].toFixed(2)),
-    };
+    const dayKey = `${date}_${venue}`;
+    if (!records[dayKey]) {
+      records[dayKey] = {
+        年: parseInt(date.slice(0, 4)), 競馬場: venue, 日付: date,
+        芝馬場差: null, ダート馬場差: null,
+      };
+    }
+    const val = parseFloat(b[j].toFixed(2));
+    if (surface === "芝") records[dayKey].芝馬場差 = val;
+    else records[dayKey].ダート馬場差 = val;
   }
   for (const [rid, k] of raceIdx) {
     const m = raceMeta[rid];
-    const rec = records[m.date];
+    const rec = records[`${m.date}_${m.venue}`];
     if (!rec) continue;
     if (!rec.レース別馬場差) rec.レース別馬場差 = {};
-    const j = nodeIdx.get(m.date);
+    const j = nodeIdx.get(m.node);
     rec.レース別馬場差[String(m.raceNum)] = parseFloat(((b[j] + r[k]) * m.scale).toFixed(2));
   }
   let output = Object.values(records);
@@ -229,14 +241,16 @@ function main() {
     console.log(`追記: ${output.length}レコード（既存${existing.length}レコードは凍結）`);
     output = existing.concat(output);
   }
-  output.sort((x, y) => x.日付.localeCompare(y.日付));
+  output.sort((x, y) => x.日付.localeCompare(y.日付) || x.競馬場.localeCompare(y.競馬場));
   fs.writeFileSync(OUTPUT_FILE, JSON.stringify(output, null, 1), "utf-8");
-  console.log(`出力: ${output.length}日レコード → ${OUTPUT_FILE}`);
+  console.log(`出力: ${output.length}日会場レコード → ${OUTPUT_FILE}`);
 
-  const vals = output.map(rec => rec.ダート馬場差).filter(v => v !== null).sort((x, y) => x - y);
-  if (vals.length) {
+  for (const surf of ["芝", "ダート"]) {
+    const key = `${surf}馬場差`;
+    const vals = output.map(rec => rec[key]).filter(v => v !== null).sort((x, y) => x - y);
+    if (vals.length === 0) continue;
     const avg = vals.reduce((x, y) => x + y, 0) / vals.length;
-    console.log(`ダート: ${vals.length}日, 平均=${avg.toFixed(3)}, 最速=${vals[0]}, 最遅=${vals[vals.length - 1]}`);
+    console.log(`${surf}: ${vals.length}日会場, 平均=${avg.toFixed(3)}, 最速=${vals[0]}, 最遅=${vals[vals.length - 1]}`);
   }
 }
 

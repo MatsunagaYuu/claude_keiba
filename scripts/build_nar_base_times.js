@@ -49,8 +49,8 @@ function main() {
     .filter((f) => f.endsWith(".csv"));
   console.log(`CSV files: ${files.length}`);
 
-  // 距離別にタイム・上がりを収集（良馬場のみ）
-  const groups = {}; // key: 距離 → { total: [], early: [], last3f: [] }
+  // 会場×路面×距離別にタイム・上がりを収集（良馬場のみ。盛岡は芝コースあり）
+  const groups = {}; // key: 会場_路面_距離 → { total: [], early: [], last3f: [] }
   let totalRaces = 0;
   let goodRaces = 0;
 
@@ -61,6 +61,8 @@ function main() {
 
     const first = rows[0];
     const condition = first["馬場"];
+    const venue = first["競馬場名"];
+    const surface = first["芝/ダート"];
     const dist = first["距離"];
     totalRaces++;
 
@@ -68,40 +70,46 @@ function main() {
     if (condition !== "良") continue;
     goodRaces++;
 
-    if (!groups[dist]) groups[dist] = { total: [], early: [], last3f: [] };
+    const key = `${venue}_${surface}_${dist}`;
+    if (!groups[key]) groups[key] = { venue, surface, dist, total: [], early: [], last3f: [] };
 
     for (const row of rows) {
       if (!/^\d+$/.test(row["着順"])) continue;
       const totalSec = timeToSeconds(row["タイム"]);
       if (!totalSec) continue;
 
-      groups[dist].total.push(totalSec);
+      groups[key].total.push(totalSec);
 
       const last3f = parseFloat(row["上がり"]);
       if (last3f && !isNaN(last3f)) {
-        groups[dist].early.push(totalSec - last3f);
-        groups[dist].last3f.push(last3f);
+        groups[key].early.push(totalSec - last3f);
+        groups[key].last3f.push(last3f);
       }
     }
   }
 
   console.log(`Total races: ${totalRaces}, 良馬場: ${goodRaces}`);
 
-  // 距離ごとに基準タイム算出
+  // 会場×路面×距離ごとに基準タイム算出
   const results = [];
-  const distances = Object.keys(groups).sort((a, b) => parseInt(a) - parseInt(b));
+  const keys = Object.keys(groups).sort((a, b) => {
+    const ga = groups[a], gb = groups[b];
+    return ga.venue.localeCompare(gb.venue) || ga.surface.localeCompare(gb.surface) || parseInt(ga.dist) - parseInt(gb.dist);
+  });
 
-  console.log("\n距離    基準走破      前半       上がり    サンプル(走破/上がり)");
-  console.log("─".repeat(65));
+  console.log("\n会場   路面   距離    基準走破      前半       上がり    サンプル(走破/上がり)");
+  console.log("─".repeat(78));
 
-  for (const dist of distances) {
-    const g = groups[dist];
+  for (const key of keys) {
+    const g = groups[key];
     const avgTotal = trimmedMean(g.total);
     const avgEarly = g.early.length >= 10 ? trimmedMean(g.early) : null;
     const avgLast3f = g.last3f.length >= 10 ? trimmedMean(g.last3f) : null;
 
     const entry = {
-      距離: parseInt(dist),
+      競馬場: g.venue,
+      "芝/ダート": g.surface,
+      距離: parseInt(g.dist),
       基準走破秒: parseFloat(avgTotal.toFixed(2)),
       基準走破: secondsToTime(avgTotal),
       基準前半秒: avgEarly ? parseFloat(avgEarly.toFixed(2)) : null,
@@ -116,7 +124,7 @@ function main() {
     const earlyStr = avgEarly ? secondsToTime(avgEarly).padStart(7) : "   N/A ";
     const last3fStr = avgLast3f ? avgLast3f.toFixed(1).padStart(5) : "  N/A";
     console.log(
-      `${dist.padStart(4)}m   ${secondsToTime(avgTotal).padStart(7)}   ${earlyStr}   ${last3fStr}     ${String(g.total.length).padStart(5)} / ${String(g.last3f.length).padStart(5)}`
+      `${g.venue.padEnd(3)} ${g.surface.padEnd(3)} ${String(g.dist).padStart(4)}m   ${secondsToTime(avgTotal).padStart(7)}   ${earlyStr}   ${last3fStr}     ${String(g.total.length).padStart(5)} / ${String(g.last3f.length).padStart(5)}`
     );
   }
 

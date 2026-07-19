@@ -2,7 +2,7 @@ const cheerio = require("cheerio");
 const fs = require("fs");
 const path = require("path");
 const { execFileSync } = require("child_process");
-const { parseClass } = require("./nar_scraper");
+const { parseClass, NAR_VENUES, NAR_ACTIVE_CODES } = require("./nar_scraper");
 
 const OUTPUT_DIR = path.join(__dirname, "..", "nar_shutuba");
 const DELAY_MS = 500;
@@ -37,8 +37,8 @@ function getNarRaceIds(kaisaiDate) {
   const re = /race_id=(\d+)/g;
   let m;
   while ((m = re.exec(html)) !== null) {
-    // 門別のrace_idは "2026300506XX" (30=門別コード)
-    if (m[1].substring(4, 6) === "30" && !ids.includes(m[1])) {
+    // 対応会場（NAR_ACTIVE_CODES）のみ取得。race_id形式 {YYYY}{code}{MMDD}{RR}
+    if (NAR_ACTIVE_CODES.includes(m[1].substring(4, 6)) && !ids.includes(m[1])) {
       ids.push(m[1]);
     }
   }
@@ -52,10 +52,11 @@ function scrapeNarShutuba(raceId) {
 
   const $ = cheerio.load(html);
 
-  // レース情報
+  // レース情報（盛岡は芝コースあり）
   const raceName = $(".RaceName").text().trim().replace(/[\r\n]+/g, " ").replace(/\s+/g, " ");
-  const surfaceMatch = html.match(/ダ(\d+)m/);
-  const distance = surfaceMatch ? surfaceMatch[1] : "";
+  const surfaceMatch = html.match(/(芝|ダ)(\d+)m/);
+  const surface = surfaceMatch ? (surfaceMatch[1] === "ダ" ? "ダート" : "芝") : "ダート";
+  const distance = surfaceMatch ? surfaceMatch[2] : "";
 
   // 開催情報
   const raceData2Text = $(".RaceData02").text().trim();
@@ -109,12 +110,12 @@ function scrapeNarShutuba(raceId) {
   if (horses.length === 0) return null;
 
   return {
-    競馬場名: "門別",
+    競馬場名: NAR_VENUES[raceId.substring(4, 6)] || "",
     開催: kaisai,
     開催日: nichime,
     レース名: raceName,
     クラス: className,
-    "芝/ダート": "ダート",
+    "芝/ダート": surface,
     距離: distance,
     horses,
   };
@@ -131,7 +132,7 @@ function main() {
 
   console.log(`Fetching race list for ${dateArg}...`);
   const raceIds = getNarRaceIds(dateArg);
-  console.log(`Found ${raceIds.length} races (門別)`);
+  console.log(`Found ${raceIds.length} races (対象会場)`);
 
   for (const raceId of raceIds) {
     console.log(`  Scraping ${raceId}...`);

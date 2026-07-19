@@ -206,7 +206,7 @@ function main() {
   if (fs.existsSync(NAR_INDEX_DIR)) {
     const narBabaMap = {};
     if (fs.existsSync(NAR_BABA_FILE)) {
-      for (const e of JSON.parse(fs.readFileSync(NAR_BABA_FILE, "utf-8"))) narBabaMap[e.日付] = e;
+      for (const e of JSON.parse(fs.readFileSync(NAR_BABA_FILE, "utf-8"))) narBabaMap[`${e.日付}_${e.競馬場}`] = e;
     }
     const narIndexFiles = fs.readdirSync(NAR_INDEX_DIR).filter((f) => f.endsWith(".csv"));
     console.log(`  NAR index files: ${narIndexFiles.length}`);
@@ -219,15 +219,20 @@ function main() {
       const dateSlash = `${raceId.substring(0, 4)}/${raceId.substring(6, 8)}/${raceId.substring(8, 10)}`;
       const raceNum = parseInt(raceId.substring(10, 12)) || 0;
 
-      // 馬場差ラベル（レース別優先、無ければ日レベルを距離補正）
+      // 馬場差ラベル（レース別優先、無ければ日レベルを距離補正。盛岡は芝あり）
       let babaSpeed = "";
-      const babaRec = narBabaMap[dateSlash];
+      const babaRec = narBabaMap[`${dateSlash}_${first["競馬場名"]}`];
       if (babaRec) {
         const dist = parseInt(first["距離"]);
+        const narSurface = first["芝/ダート"];
+        const dayVal = narSurface === "芝" ? babaRec.芝馬場差 : babaRec.ダート馬場差;
         let val = babaRec.レース別馬場差 && babaRec.レース別馬場差[String(raceNum)];
         if (val === undefined || val === null) {
-          val = babaRec.ダート馬場差 !== null
-            ? babaRec.ダート馬場差 * (DIRT_SCALE_A * dist + DIRT_SCALE_B) : null;
+          val = dayVal !== null && dayVal !== undefined
+            ? (narSurface === "ダート"
+                ? dayVal * (DIRT_SCALE_A * dist + DIRT_SCALE_B)
+                : dayVal * (dist / 2000))
+            : null;
         }
         babaSpeed = babaLabel(val);
       }

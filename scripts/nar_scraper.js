@@ -171,7 +171,20 @@ function scrapeNarRaceResult(raceId) {
   console.log(`Saved: ${outputFile} (${rows.length} rows)`);
 }
 
-module.exports = { scrapeNarRaceResult, parseClass };
+// netkeiba NAR keibajo_code → 会場名（対応会場を増やす際はここに追加）
+const NAR_VENUES = {
+  "30": "門別",
+  "35": "盛岡",
+  "36": "水沢",
+  "42": "浦和",
+  "43": "船橋",
+  "44": "大井",
+  "45": "川崎",
+};
+// 現在スクレイピング対象にしている会場
+const NAR_ACTIVE_CODES = ["30", "35", "36", "44"];
+
+module.exports = { scrapeNarRaceResult, parseClass, NAR_VENUES, NAR_ACTIVE_CODES };
 
 // CLI direct execution
 if (require.main === module) {
