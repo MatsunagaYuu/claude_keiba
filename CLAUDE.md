@@ -49,6 +49,7 @@ JRAの競馬レースデータをスクレイピングし、独自の総合指�
 ├── kaisai_calendar.json  # 開催カレンダー
 ├── batch_result.sh       # レース結果バッチ（結果取得→指数→デプロイ）
 ├── batch_shutuba.sh      # 出馬表バッチ（出馬表取得→デプロイ）
+├── batch_nar.sh          # NARバッチ（結果+馬場差+指数+出馬表→デプロイ、1本で完結）
 └── deploy.sh             # docs/をgit push（GitHub Pages）
 ```
 
@@ -79,15 +80,19 @@ node scripts/scrape_calendar.js                 # 全期間（初回・大幅な
 # NAR更新フロー（手動）
 # 対応会場: 門別・盛岡・水沢・浦和・船橋・大井・川崎（nar_scraper.js の NAR_ACTIVE_CODES で管理）
 # 結果は2023/4以降を取得済み。日付を渡せば開催のある対象会場だけ自動で取得される
+./batch_nar.sh 20260727 20260728 20260729  # 結果+馬場差+指数+出馬表→デプロイを1本で実行
+# 結果が未取得の未来日（出馬表のみ公開）を混ぜても安全（馬場差・指数の更新は自動スキップ）
+
+# 個別に叩きたい場合（batch_nar.shの中身）:
 # 結果側:
 node scripts/scrape_nar_result_by_date.js 20260714,20260715,20260716  # 結果取得
 node scripts/build_nar_baba_diff.js --append 20260714 20260715 20260716  # 馬場差追記（過去凍結）
 node scripts/calc_nar_index.js                  # 指数再計算（全件・数秒で完了）
-node scripts/build_viewer_data.js --year 2026   # ビューアデータ更新（門別も合流される）
+node scripts/build_viewer_data.js --year 2026   # ビューアデータ更新（NAR各場も合流される）
 ./deploy.sh
 # 出馬表側:
 node scripts/scrape_nar_shutuba.js 20260714     # 出馬表取得（1日ずつ）
-node scripts/build_shutuba_data.js --date 20260714 20260715  # JRA/門別とも同じ出力に合流
+node scripts/build_shutuba_data.js --date 20260714 20260715  # JRA/NARとも同じ出力に合流
 ./deploy.sh
 # 馬場差の全期間一括再構築（node scripts/build_nar_baba_diff.js）後は、JRA同様に
 # 進行中半期の日が馬効果不足で歪むため、直近開催日を --append で上書きすること
