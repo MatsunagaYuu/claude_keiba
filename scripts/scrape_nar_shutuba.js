@@ -69,24 +69,18 @@ function scrapeNarShutuba(raceId) {
   const className = parseClass(raceName);
 
   // 馬データ
+  // 注意: ページ内には出馬表本体（table.ShutubaTable）とは別に、会員限定の
+  // 予想ラップ表（Shutuba_Table PredictRap_Table）も tr.HorseList を使っており、
+  // スコープを絞らないと無関係な行まで走査してしまう。
   const horses = [];
-  $("tr.HorseList").each((i, el) => {
+  $("table.ShutubaTable tr.HorseList").each((i, el) => {
     const $el = $(el);
     const waku = $el.find("td[class^='Waku']").first().text().trim();
     const umaban = $el.find("td[class^='Umaban']").first().text().trim();
     const horseName = $el.find(".HorseName a").text().trim();
     const jockey = $el.find(".Jockey a").text().trim();
 
-    // 斤量
-    let kinryo = "";
-    $el.find("td").each((j, td) => {
-      const text = $(td).text().trim();
-      if (/^\d+(\.\d)?$/.test(text) && parseFloat(text) > 40 && parseFloat(text) < 70) {
-        kinryo = text;
-      }
-    });
-
-    // 性齢
+    // 性齢（例: "牝2"）
     let sexAge = "";
     $el.find("td").each((j, td) => {
       const text = $(td).text().trim();
@@ -94,6 +88,11 @@ function scrapeNarShutuba(raceId) {
         sexAge = text;
       }
     });
+
+    // 斤量: 性齢セル(span.Age)の直後のtdが斤量。td内を数値レンジで走査すると
+    // 単勝オッズ（40〜70の範囲に収まることがある）を誤って拾ってしまうため、
+    // 位置関係で確実に斤量セルだけを取得する。
+    const kinryo = $el.find("span.Age").closest("td").next("td").text().trim();
 
     if (horseName) {
       horses.push({

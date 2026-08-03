@@ -46,6 +46,35 @@ function parseClass(raceName) {
   return name;
 }
 
+// コーナー通過順位テーブル（table.Corner_Num）から馬番別の通過順位文字列を作る。
+// 各コーナー行は "(10,4,2),3,(5,11),1,13,(8,14),12,7,6-9" のような形式:
+//   カンマ/ハイフン/イコールは区切り（間隔の大小を表すが順位計算では区別不要）
+//   括弧は僅差の並走馬群（同順位として扱う＝JRAの通過欄と同じ「同着は同数字」方式）
+// JRA側の通過欄（例: "9-10-9-8"）と同じ「先頭から連続した順位番号（同着は人数分スキップ）」
+// になるよう変換し、馬番→各コーナー順位の配列を返す。
+function parseCornerPassing($) {
+  const cornerRows = $("table.Corner_Num tr");
+  if (cornerRows.length === 0) return {};
+
+  const byHorse = {}; // 馬番 → [1角, 2角, ...]
+  cornerRows.each((i, tr) => {
+    const text = $(tr).find("td").text().trim();
+    if (!text) return;
+    let cursor = 1;
+    const tokenRe = /\(([\d,]+)\)|(\d+)/g;
+    let m;
+    while ((m = tokenRe.exec(text)) !== null) {
+      const nums = m[1] ? m[1].split(",").map((n) => n.trim()) : [m[2]];
+      for (const n of nums) {
+        if (!byHorse[n]) byHorse[n] = [];
+        byHorse[n].push(cursor);
+      }
+      cursor += nums.length;
+    }
+  });
+  return byHorse;
+}
+
 function scrapeNarRaceResult(raceId) {
   const html = fetchHTML(raceId);
   const $ = cheerio.load(html);
@@ -85,6 +114,9 @@ function scrapeNarRaceResult(raceId) {
     馬場: condition,
   };
 
+  // --- コーナー通過順位 ---
+  const cornerByHorse = parseCornerPassing($);
+
   // --- Result table ---
   const rows = [];
   $("#All_Result_Table tbody tr").each((i, tr) => {
@@ -120,6 +152,7 @@ function scrapeNarRaceResult(raceId) {
     const odds = $(tds[10]).find(".Odds_Ninki").text().trim();
     const agari3f = $(tds[11]).text().replace(/\s+/g, "").trim();
     const weight = $(tds[13]).text().replace(/\s+/g, "").trim();
+    const passing = (cornerByHorse[umaban] || []).join("-");
 
     rows.push({
       着順: chakujun,
@@ -131,6 +164,7 @@ function scrapeNarRaceResult(raceId) {
       騎手: kishu,
       タイム: time,
       着差: chakusa,
+      通過: passing,
       上がり: agari3f,
       人気: ninki,
       単勝オッズ: odds,
@@ -149,7 +183,7 @@ function scrapeNarRaceResult(raceId) {
   const headers = [
     ...raceInfoHeaders,
     "着順", "枠番", "馬番", "馬名", "性齢", "斤量", "騎手",
-    "タイム", "着差", "上がり", "人気", "単勝オッズ", "馬体重",
+    "タイム", "着差", "通過", "上がり", "人気", "単勝オッズ", "馬体重",
   ];
 
   const csvLines = [headers.join(",")];
