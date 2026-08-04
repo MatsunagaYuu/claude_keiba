@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const { execFileSync } = require("child_process");
 const { parseClass, NAR_VENUES, NAR_ACTIVE_CODES } = require("./nar_scraper");
+const { toCSVLine } = require("./csv_util");
 
 const OUTPUT_DIR = path.join(__dirname, "..", "nar_shutuba");
 const DELAY_MS = 500;
@@ -143,12 +144,12 @@ function main() {
 
     // CSV出力
     const headers = ["競馬場名", "開催", "開催日", "レース名", "クラス", "芝/ダート", "距離", "枠番", "馬番", "馬名", "性齢", "斤量", "騎手"];
-    const lines = [headers.join(",")];
+    const lines = [toCSVLine(headers)];
     for (const h of data.horses) {
-      lines.push([
+      lines.push(toCSVLine([
         data.競馬場名, data.開催, data.開催日, data.レース名, data.クラス,
         data["芝/ダート"], data.距離, h.枠番, h.馬番, h.馬名, h.性齢, h.斤量, h.騎手,
-      ].join(","));
+      ]));
     }
 
     const outFile = path.join(OUTPUT_DIR, `shutuba_${raceId}.csv`);

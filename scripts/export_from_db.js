@@ -21,7 +21,7 @@ const OUTPUT_DIR = path.join(__dirname, "..", "race_result");
 
 // --- 接続設定 ---
 const DB_CONFIG = {
-  host: process.env.PGHOST || "localhost",
+  host: process.env.PGHOST || "192.168.0.55",
   user: process.env.PGUSER || "postgres",
   password: process.env.PGPASSWORD,
   database: process.env.PGDATABASE || "mykeibadb",

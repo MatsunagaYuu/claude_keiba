@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { parseCSV } = require("./csv_util");
 
 const NAISEI_MODE = process.argv.includes("--naisei");
 const NO_CALIB = process.argv.includes("--no-calib");
@@ -128,19 +129,6 @@ function timeToSeconds(timeStr) {
   return parseInt(m[1]) * 60 + parseFloat(m[2]);
 }
 
-function parseCSV(content) {
-  const lines = content.split("\n").filter((l) => l.trim());
-  if (lines.length < 2) return [];
-  const headers = lines[0].split(",");
-  const rows = [];
-  for (let i = 1; i < lines.length; i++) {
-    const vals = lines[i].split(",");
-    const row = {};
-    headers.forEach((h, idx) => (row[h] = vals[idx] || ""));
-    rows.push(row);
-  }
-  return rows;
-}
 
 function main() {
   const baseTimes = JSON.parse(fs.readFileSync(BASE_TIMES_FILE, "utf-8"));

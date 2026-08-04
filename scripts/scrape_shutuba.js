@@ -2,6 +2,7 @@ const cheerio = require("cheerio");
 const fs = require("fs");
 const path = require("path");
 const { execSync } = require("child_process");
+const { toCSVLine } = require("./csv_util");
 
 const OUTPUT_DIR = path.join(__dirname, "..", "shutuba");
 const CALENDAR_FILE = path.join(__dirname, "..", "kaisai_calendar.json");
@@ -115,13 +116,13 @@ function toCSV(raceData) {
     "競馬場名", "開催", "開催日", "クラス", "芝/ダート", "距離",
     "枠番", "馬番", "馬名", "馬ID", "性齢", "斤量", "騎手", "厩舎",
   ];
-  const lines = [headers.join(",")];
+  const lines = [toCSVLine(headers)];
   for (const h of raceData.horses) {
-    lines.push([
+    lines.push(toCSVLine([
       raceData.競馬場名, raceData.開催, raceData.開催日,
       raceData.クラス, raceData["芝/ダート"], raceData.距離,
       h.枠番, h.馬番, h.馬名, h.馬ID, h.性齢, h.斤量, h.騎手, h.厩舎,
-    ].join(","));
+    ]));
   }
   return lines.join("\n") + "\n";
 }

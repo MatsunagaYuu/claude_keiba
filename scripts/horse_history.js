@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { parseCSV } = require("./csv_util");
 
 const INDEX_DIR = path.join(__dirname, "..", "race_index");
 const CALENDAR_FILE = path.join(__dirname, "..", "kaisai_calendar.json");
@@ -9,19 +10,6 @@ const EXT_BABA_FILE = path.join(__dirname, "..", "external_baba_diff.json");
 const DIRT_BASE_DIST = { 東京: 1600, 札幌: 1700, 函館: 1700, 小倉: 1700 };
 const DIRT_DEFAULT_DIST = 1800;
 
-function parseCSV(content) {
-  const lines = content.split("\n").filter((l) => l.trim());
-  if (lines.length < 2) return [];
-  const headers = lines[0].split(",");
-  const rows = [];
-  for (let i = 1; i < lines.length; i++) {
-    const vals = lines[i].split(",");
-    const row = {};
-    headers.forEach((h, idx) => (row[h] = vals[idx] || ""));
-    rows.push(row);
-  }
-  return rows;
-}
 
 function main() {
   const query = process.argv.slice(2).join(" ");

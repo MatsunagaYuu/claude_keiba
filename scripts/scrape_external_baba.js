@@ -278,6 +278,13 @@ function main() {
     }
   }
 
+  // 2026/05/09以降はittai.netのデータ提供終了のため除外
+  const ITTAI_CUTOFF = "2026/05/09";
+  const filteredCount = newData.length;
+  const cutoffRemoved = newData.filter(r => r.日付 >= ITTAI_CUTOFF).length;
+  newData.splice(0, newData.length, ...newData.filter(r => r.日付 < ITTAI_CUTOFF));
+  if (cutoffRemoved > 0) console.log(`Cutoff (>= ${ITTAI_CUTOFF}): removed ${cutoffRemoved} records`);
+
   // 変動ありの開催日にレース別馬場差を取得
   let raceBabaCount = 0;
   for (const record of newData) {

@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { parseCSV } = require("./csv_util");
 
 const INDEX_DIR = path.join(__dirname, "..", "nar_race_index");
 const SHUTUBA_DIR = path.join(__dirname, "..", "nar_shutuba");
@@ -25,17 +26,6 @@ function babaLabel(diff) {
   return `${sign}${diff.toFixed(1)}(${label})`;
 }
 
-function parseCSV(content) {
-  const lines = content.split("\n").filter((l) => l.trim());
-  if (lines.length < 2) return [];
-  const headers = lines[0].split(",");
-  return lines.slice(1).map((line) => {
-    const vals = line.split(",");
-    const row = {};
-    headers.forEach((h, i) => (row[h] = vals[i] || ""));
-    return row;
-  });
-}
 
 // race_idから日付(YYYY/MM/DD)を抽出
 function raceIdToDate(raceId) {

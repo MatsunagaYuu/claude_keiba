@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { parseCSV, toCSVLine } = require("./csv_util");
 
 const RACE_RESULT_DIR = path.join(__dirname, "..", "nar_race_result");
 const OUTPUT_DIR = path.join(__dirname, "..", "nar_race_index");
@@ -44,17 +45,6 @@ function timeToSeconds(timeStr) {
 }
 
 // CSVパース
-function parseCSV(content) {
-  const lines = content.split("\n").filter((l) => l.trim());
-  if (lines.length < 2) return [];
-  const headers = lines[0].split(",");
-  return lines.slice(1).map((line) => {
-    const vals = line.split(",");
-    const row = {};
-    headers.forEach((h, i) => (row[h] = vals[i] || ""));
-    return row;
-  });
-}
 
 // race_idから日付(YYYY/MM/DD)を抽出
 function extractDate(filename) {
@@ -155,9 +145,9 @@ function main() {
 
     // CSV出力
     const headers = Object.keys(outputRows[0]);
-    const csvLines = [headers.join(",")];
+    const csvLines = [toCSVLine(headers)];
     for (const row of outputRows) {
-      csvLines.push(headers.map((h) => row[h] || "").join(","));
+      csvLines.push(toCSVLine(headers.map((h) => row[h] || "")));
     }
     const outFile = file.replace("result_", "index_");
     fs.writeFileSync(path.join(OUTPUT_DIR, outFile), csvLines.join("\n"), "utf-8");

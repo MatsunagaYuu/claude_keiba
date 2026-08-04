@@ -15,7 +15,7 @@ const { Client } = require("pg");
 const OUTPUT_FILE = path.join(__dirname, "..", "kaisai_calendar.json");
 
 const DB_CONFIG = {
-  host:     process.env.PGHOST     || "localhost",
+  host:     process.env.PGHOST     || "192.168.0.55",
   user:     process.env.PGUSER     || "postgres",
   password: process.env.PGPASSWORD,
   database: process.env.PGDATABASE || "mykeibadb",

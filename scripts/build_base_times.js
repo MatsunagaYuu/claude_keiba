@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { parseCSV } = require("./csv_util");
 
 const RACE_RESULT_DIR = path.join(__dirname, "..", "race_result");
 const OUTPUT_FILE = path.join(__dirname, "..", "base_times.json");
@@ -71,19 +72,6 @@ function secondsToTime(sec) {
 }
 
 // CSVパース（簡易）
-function parseCSV(content) {
-  const lines = content.split("\n").filter((l) => l.trim());
-  if (lines.length < 2) return [];
-  const headers = lines[0].split(",");
-  const rows = [];
-  for (let i = 1; i < lines.length; i++) {
-    const vals = lines[i].split(",");
-    const row = {};
-    headers.forEach((h, idx) => (row[h] = vals[idx] || ""));
-    rows.push(row);
-  }
-  return rows;
-}
 
 function main() {
   const files = fs
