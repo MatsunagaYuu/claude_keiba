@@ -262,7 +262,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
   <!-- 出馬表フィルタ -->
   <div class="filters" id="shutuba-filters">
     <div class="filter-row">
-      <select id="shutuba-date-filter"><option value="">日付を選択</option></select>
+      <input type="date" id="shutuba-date-filter">
     </div>
   </div>
 
@@ -347,6 +347,11 @@ function idxClass(v) {
   if (n >= 330) return 'idx-high';
   if (n >= 310) return 'idx-mid';
   return 'idx-low';
+}
+
+// YYYYMMDD → input[type=date] が扱う YYYY-MM-DD
+function toDateInput(d) {
+  return `${d.substring(0, 4)}-${d.substring(4, 6)}-${d.substring(6, 8)}`;
 }
 
 // 今日の日付(YYYYMMDD)を日本時間で返す。閲覧端末のタイムゾーンに依存しない
@@ -689,14 +694,6 @@ async function loadShutubaMeta() {
     const res = await fetch('shutuba_meta.json');
     shutubaMeta = await res.json();
     const dateEl = document.getElementById('shutuba-date-filter');
-    dateEl.innerHTML = '';
-    for (const m of shutubaMeta) {
-      const o = document.createElement('option');
-      o.value = m.date;
-      const d = m.date;
-      o.textContent = `${d.substring(0,4)}/${d.substring(4,6)}/${d.substring(6,8)} (${m.count}R)`;
-      dateEl.appendChild(o);
-    }
 
     if (shutubaMeta.length === 0) {
       document.getElementById('race-list').innerHTML = '<div class="no-results">出馬表データなし</div>';
@@ -704,11 +701,16 @@ async function loadShutubaMeta() {
       return;
     }
 
+    // カレンダーで選べる範囲をデータのある期間に制限（範囲内の非開催日は選択可・空表示）
+    // shutubaMeta は日付降順
+    dateEl.min = toDateInput(shutubaMeta[shutubaMeta.length - 1].date);
+    dateEl.max = toDateInput(shutubaMeta[0].date);
+
     // 今日以降で最も近い日付を選択（降順なので逆順でfind）、なければ最新日付
     // 日付境界は日本時間0時。toISOString()はUTCを返すためJST9時で切り替わってしまう
     const today = jstToday();
     const nearest = [...shutubaMeta].reverse().find(m => m.date >= today);
-    dateEl.value = nearest ? nearest.date : shutubaMeta[0].date;
+    dateEl.value = toDateInput(nearest ? nearest.date : shutubaMeta[0].date);
 
     // 選択日付をロード
     await onShutubaDateChange();
@@ -719,14 +721,29 @@ async function loadShutubaMeta() {
 }
 
 async function onShutubaDateChange() {
-  const date = document.getElementById('shutuba-date-filter').value;
+  // input[type=date] は YYYY-MM-DD を返すのでデータのキー形式に変換
+  const date = (document.getElementById('shutuba-date-filter').value || '').replace(/-/g, '');
   if (!date) return;
 
-  document.getElementById('race-list').innerHTML = '<div class="loading">読み込み中...</div>';
+  const listEl = document.getElementById('race-list');
+  const statsEl = document.getElementById('stats');
+
+  // 開催日以外も選択できる。データが無い日は空状態を出す
+  if (!shutubaMeta.some(m => m.date === date)) {
+    shutubaData = [];
+    selectedShutubaRace = null;
+    selectedShutubaVenue = null;
+    statsEl.textContent = '';
+    listEl.innerHTML = '<div class="no-results">この日のレース情報がありません</div>';
+    return;
+  }
+
+  listEl.innerHTML = '<div class="loading">読み込み中...</div>';
 
   try {
     if (!shutubaCache[date]) {
       const r = await fetch(`shutuba_${date}.json`);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
       shutubaCache[date] = await r.json();
       for (const race of shutubaCache[date]) {
         race._date = date;
@@ -737,7 +754,7 @@ async function onShutubaDateChange() {
     selectedShutubaVenue = null;
     renderShutuba();
   } catch (e) {
-    document.getElementById('race-list').innerHTML = '<div class="loading">読み込みエラー: ' + e.message + '</div>';
+    listEl.innerHTML = '<div class="loading">読み込みエラー: ' + e.message + '</div>';
   }
 }
 
