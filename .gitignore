@@ -22,3 +22,6 @@ scripts/export_from_db.js
 
 # ドキュメント
 *.md
+
+# 基準タイムはビューアからほぼ参照しないため配信対象外（リポジトリ肥大化の抑制）
+docs/base_times.json

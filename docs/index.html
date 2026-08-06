@@ -1034,9 +1034,12 @@ function buildMiniBar(pastRaces) {
 
 // === 基準タイムタブ ===
 
+// base_times.json は配信対象外（.gitignore）。閲覧したい場合は
+// プロジェクトルートの base_times.json を docs/ にコピーしてローカルで開く
 async function loadBaseTimes() {
   try {
     const res = await fetch('base_times.json');
+    if (!res.ok) throw new Error('not deployed');
     baseTimesData = await res.json();
 
     const venueEl = document.getElementById('bt-venue-filter');
@@ -1046,7 +1049,7 @@ async function loadBaseTimes() {
 
     renderBaseTimes();
   } catch (e) {
-    document.getElementById('race-list').innerHTML = '<div class="loading">基準タイムデータなし</div>';
+    document.getElementById('race-list').innerHTML = '<div class="no-results">基準タイムはビューアで配信していません</div>';
   }
 }
 
