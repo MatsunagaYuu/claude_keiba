@@ -9,7 +9,7 @@ const NAR_SHUTUBA_DIR = path.join(__dirname, "..", "nar_shutuba");
 const NAR_BABA_FILE = path.join(__dirname, "..", "nar_baba_diff.json");
 const OUTPUT_DIR = path.join(__dirname, "..", "docs");
 const CALENDAR_FILE = path.join(__dirname, "..", "kaisai_calendar.json");
-const EXT_BABA_FILE = path.join(__dirname, "..", "external_baba_diff.json");
+const BABA_DIFF_FILE = path.join(__dirname, "..", "baba_diff.json");
 
 // 外部馬場差のダート距離スケーリング係数（回帰分析による）
 const DIRT_SCALE_A = 0.000425;
@@ -58,21 +58,21 @@ function main() {
     console.log(`Calendar: ${Object.keys(dateMap).length} venue-day mappings`);
   }
 
-  // 外部馬場差マップ: "surface_日付_競馬場" → レコード全体
-  const extBabaMap = {};
-  if (fs.existsSync(EXT_BABA_FILE)) {
-    const extData = JSON.parse(fs.readFileSync(EXT_BABA_FILE, "utf-8"));
-    for (const e of extData) {
+  // 内製馬場差マップ: "surface_日付_競馬場" → レコード全体
+  // 外部馬場差(external_baba_diff.json)は2026/07/05で更新停止しているため、
+  // それ以降の過去走で馬場差が空欄になる。結果タブ(build_viewer_data.js)と同じ内製ソースを使う
+  const babaMap = {};
+  if (fs.existsSync(BABA_DIFF_FILE)) {
+    const babaData = JSON.parse(fs.readFileSync(BABA_DIFF_FILE, "utf-8"));
+    for (const e of babaData) {
       if (e.芝馬場差 !== null) {
-        const key = `芝_${e.日付}_${e.競馬場}`;
-        extBabaMap[key] = e;
+        babaMap[`芝_${e.日付}_${e.競馬場}`] = e;
       }
       if (e.ダート馬場差 !== null) {
-        const key = `ダート_${e.日付}_${e.競馬場}`;
-        extBabaMap[key] = e;
+        babaMap[`ダート_${e.日付}_${e.競馬場}`] = e;
       }
     }
-    console.log(`ExtBabaDiff: ${Object.keys(extBabaMap).length} entries`);
+    console.log(`BabaDiff (naisei): ${Object.keys(babaMap).length} entries`);
   }
 
   // 1. race_indexから馬名→過去走実績マップを構築
@@ -111,34 +111,26 @@ function main() {
       date = dateMap[calKey] || "";
     }
 
-    // 馬場差ラベル（外部馬場差から距離別対応で生成）
+    // 馬場差ラベル（内製 baba_diff.json。レース別を優先し、無ければ日レベルを距離補正）
     const surface = first["芝/ダート"] || "";
+    const raceNum = parseInt(raceId.substring(10, 12)) || 0;
     let babaSpeed = "";
     if (date) {
       const dateStr = `${date.substring(0,4)}/${date.substring(4,6)}/${date.substring(6,8)}`;
-      const extKey = `${surface}_${dateStr}_${first["競馬場名"]}`;
-      const extRecord = extBabaMap[extKey];
-      if (extRecord) {
+      const babaRecord = babaMap[`${surface}_${dateStr}_${first["競馬場名"]}`];
+      if (babaRecord) {
         const dist = parseInt(first["距離"]);
-        let displayVals = [];
-        if (surface === "ダート") {
-          // ダート距離別馬場差がある場合
-          if (extRecord.ダート距離別馬場差 && extRecord.ダート距離別馬場差[dist]) {
-            displayVals.push(extRecord.ダート距離別馬場差[dist]);
-          } else if (extRecord.ダート馬場差 !== null) {
-            // 距離別がない場合、全体値で距離補正（回帰フィット係数）
-            displayVals.push(extRecord.ダート馬場差 * (DIRT_SCALE_A * dist + DIRT_SCALE_B));
-          }
-        } else {
-          // 芝：常に距離補正
-          if (extRecord.芝馬場差 !== null) {
-            displayVals.push(extRecord.芝馬場差 * (dist / 2000));
+        // レース別馬場差（フラット形式・距離補正済みの実数値）
+        let val = babaRecord.レース別馬場差 && babaRecord.レース別馬場差[String(raceNum)];
+        if (val === undefined || val === null) {
+          const dayVal = surface === "芝" ? babaRecord.芝馬場差 : babaRecord.ダート馬場差;
+          if (dayVal !== null && dayVal !== undefined) {
+            val = surface === "ダート"
+              ? dayVal * (DIRT_SCALE_A * dist + DIRT_SCALE_B)
+              : dayVal * (dist / 2000);
           }
         }
-        // 複数の値がある場合は前後両方表示（例: "-1.9 → -1.6"）
-        if (displayVals.length > 0) {
-          babaSpeed = displayVals.map(v => babaLabel(v)).join(" → ");
-        }
+        if (val !== undefined && val !== null) babaSpeed = babaLabel(val);
       }
     }
 
