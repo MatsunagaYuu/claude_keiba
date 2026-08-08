@@ -1047,7 +1047,7 @@ async function showHorseDetail(name) {
   detailStats.textContent = `${results.length}戦${wins}勝 / 能力指数 最高${maxAbility} 平均${avgAbility}`;
 
   let html = '<div class="table-wrap"><table class="horse-table">';
-  html += '<tr><th>日付</th><th>場</th><th>距離</th><th>クラス</th><th>馬場</th><th>馬場差</th><th>斤量</th><th>着</th><th>タイム</th><th>上り</th><th>通過</th><th>総合</th><th>上指</th><th>能力</th></tr>';
+  html += '<tr><th>日付</th><th>場</th><th>距離</th><th>クラス</th><th>馬場</th><th>馬場差</th><th>斤量</th><th>騎手</th><th>着</th><th>タイム</th><th>上り</th><th>通過</th><th>総合</th><th>上指</th><th>能力</th></tr>';
 
   for (const { race, horse } of results) {
     html += '<tr>';
@@ -1063,6 +1063,7 @@ async function showHorseDetail(name) {
     const bSpd = race[R.BABA_SPEED] || '';
     html += `<td style="font-size:10px;white-space:nowrap">${bSpd}</td>`;
     html += `<td>${horse[H.WEIGHT]}</td>`;
+    html += `<td>${horse[H.JOCKEY]}</td>`;
     html += `<td>${horse[H.RANK]}</td>`;
     html += `<td>${horse[H.TIME]}</td>`;
     html += `<td>${horse[H.LAST3F]}</td>`;
