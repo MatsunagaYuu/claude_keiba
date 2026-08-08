@@ -168,15 +168,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
 
 .shutuba-detail { margin-top: 8px; }
 
-/* 基準タイムフィルタ */
-.surface-toggle { display: flex; gap: 0; }
-.surface-toggle button {
-  padding: 6px 16px; border: 1px solid #ccc; background: #fff; font-size: 13px;
-  cursor: pointer; font-weight: 600; color: #777;
-}
-.surface-toggle button:first-child { border-radius: 4px 0 0 4px; }
-.surface-toggle button:last-child { border-radius: 0 4px 4px 0; border-left: none; }
-.surface-toggle button.active { background: #1a5c2a; color: #fff; border-color: #1a5c2a; }
 
 /* グレードバッジ */
 .grade-badge {
@@ -223,7 +214,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
 <div class="tab-bar">
   <button class="tab-btn active" onclick="switchTab('result')">結果</button>
   <button class="tab-btn" onclick="switchTab('shutuba')">出馬表</button>
-  <button class="tab-btn" onclick="switchTab('basetime')">基準タイム</button>
 </div>
 
 <!-- メイン画面 -->
@@ -263,17 +253,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
   <div class="filters" id="shutuba-filters">
     <div class="filter-row">
       <input type="date" id="shutuba-date-filter">
-    </div>
-  </div>
-
-  <!-- 基準タイムフィルタ -->
-  <div class="filters" id="basetime-filters">
-    <div class="filter-row">
-      <div class="surface-toggle">
-        <button class="active" onclick="setBtSurface('芝')">芝</button>
-        <button onclick="setBtSurface('ダート')">ダート</button>
-      </div>
-      <select id="bt-venue-filter"><option value="">全競馬場</option></select>
     </div>
   </div>
 
@@ -329,8 +308,6 @@ let shutubaFilterAvgAbility = '';     // 数値文字列 or ''
 let shutubaFilterMode = 'AND';        // 'AND' | 'OR'
 
 // 基準タイム用
-let baseTimesData = null;
-let btSurface = '芝';
 
 function gradeBadge(grade, raceClass) {
   if (!grade) return '';
@@ -367,12 +344,11 @@ function jstToday() {
 function switchTab(tab) {
   currentTab = tab;
   document.querySelectorAll('.tab-btn').forEach((btn, i) => {
-    btn.classList.toggle('active', (i === 0 && tab === 'result') || (i === 1 && tab === 'shutuba') || (i === 2 && tab === 'basetime'));
+    btn.classList.toggle('active', (i === 0 && tab === 'result') || (i === 1 && tab === 'shutuba'));
   });
 
   document.getElementById('result-filters').classList.toggle('active', tab === 'result');
   document.getElementById('shutuba-filters').classList.toggle('active', tab === 'shutuba');
-  document.getElementById('basetime-filters').classList.toggle('active', tab === 'basetime');
 
   const list = document.getElementById('race-list');
   const statsEl = document.getElementById('stats');
@@ -391,14 +367,6 @@ function switchTab(tab) {
       loadShutubaMeta();
     } else {
       renderShutuba();
-    }
-  } else if (tab === 'basetime') {
-    if (!baseTimesData) {
-      statsEl.textContent = '';
-      list.innerHTML = '<div class="loading">基準タイムを読み込み中...</div>';
-      loadBaseTimes();
-    } else {
-      renderBaseTimes();
     }
   }
 }
@@ -1032,72 +1000,6 @@ function buildMiniBar(pastRaces) {
   return buildPastRaces(pastRaces);
 }
 
-// === 基準タイムタブ ===
-
-// base_times.json は配信対象外（.gitignore）。閲覧したい場合は
-// プロジェクトルートの base_times.json を docs/ にコピーしてローカルで開く
-async function loadBaseTimes() {
-  try {
-    const res = await fetch('base_times.json');
-    if (!res.ok) throw new Error('not deployed');
-    baseTimesData = await res.json();
-
-    const venueEl = document.getElementById('bt-venue-filter');
-    venueEl.innerHTML = '<option value="">全競馬場</option>';
-    const venues = [...new Set(baseTimesData.map(r => r['競馬場']))].sort();
-    venues.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; venueEl.appendChild(o); });
-
-    renderBaseTimes();
-  } catch (e) {
-    document.getElementById('race-list').innerHTML = '<div class="no-results">基準タイムはビューアで配信していません</div>';
-  }
-}
-
-function setBtSurface(s) {
-  btSurface = s;
-  document.querySelectorAll('.surface-toggle button').forEach(btn => {
-    btn.classList.toggle('active', btn.textContent === s);
-  });
-  renderBaseTimes();
-}
-
-function renderBaseTimes() {
-  const venue = document.getElementById('bt-venue-filter').value;
-  const data = baseTimesData.filter(r => {
-    if (r['芝/ダート'] !== btSurface) return false;
-    if (venue && r['競馬場'] !== venue) return false;
-    return true;
-  });
-
-  const list = document.getElementById('race-list');
-  const statsEl = document.getElementById('stats');
-  statsEl.textContent = `${btSurface} ${data.length}件`;
-
-  if (data.length === 0) {
-    list.innerHTML = '<div class="no-results">該当なし</div>';
-    return;
-  }
-
-  let html = '<div class="table-wrap"><table class="horse-table">';
-  html += '<tr><th>競馬場</th><th>距離</th><th>クラス</th><th>基準指数</th><th>走破</th><th>前半</th><th>上がり</th><th>サンプル</th></tr>';
-
-  for (const r of data) {
-    html += '<tr>';
-    html += `<td>${r['競馬場']}</td>`;
-    html += `<td>${r['距離']}m</td>`;
-    html += `<td style="text-align:left">${r['クラス']}</td>`;
-    html += `<td class="idx">${r['基準指数']}</td>`;
-    html += `<td>${r['基準走破']}</td>`;
-    html += `<td>${r['基準前半']}</td>`;
-    html += `<td>${r['基準上がり']}</td>`;
-    html += `<td>${r['サンプル数']}</td>`;
-    html += '</tr>';
-  }
-
-  html += '</table></div>';
-  list.innerHTML = html;
-}
-
 // === 馬詳細画面 ===
 
 async function showHorseDetail(name) {
@@ -1251,7 +1153,6 @@ document.getElementById('year-filter').addEventListener('change', onYearChange);
 document.getElementById('generation-filter').addEventListener('change', onGenerationChange);
 document.getElementById('date-filter').addEventListener('change', onDateChange);
 document.getElementById('shutuba-date-filter').addEventListener('change', onShutubaDateChange);
-document.getElementById('bt-venue-filter').addEventListener('change', renderBaseTimes);
 
 // meta.jsonから年リストを読み込み → URLパラメータ処理
 fetch('meta.json')
