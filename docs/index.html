@@ -292,6 +292,14 @@ const SP = { DATE:0, VENUE:1, DIST:2, SURFACE:3, COND:4, RANK:5, TOTAL:6, ABILIT
 // NARは parseClass() 済みの値（C4/A2B1/Jpn3/2歳 など）をそのまま通す。
 // 注意: JRAのグレード列の "OP" は「オープン」ではなく特別競走（レース名付き）の印で、
 // 2勝クラスの特別戦にも付く。クラス側にOPが無ければ無視する。
+// netkeiba由来の文字列（馬名・騎手・レース名など）をHTMLに埋める前にエスケープする。
+// レース名には「ハロー,ウラワールド!特別」のような記号入りが実在するため、
+// XSS対策であると同時に記号による表示崩れの防止でもある。
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g,
+    c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 // レース名が条件をそのまま書いただけか判定する。
 // 「3歳以上1勝クラス」「2歳 未勝利」「C2三組」などはクラス表示と重複するので出さない。
 // 「札幌記念」「大垣特別」のような固有名だけを表示したい。
@@ -829,10 +837,10 @@ function renderShutuba() {
     html += `<button class="race-btn${sel}" onclick="selectShutubaRace('${id}')">`;
     html += `<span class="rnum">${race[SR.RACENUM]}R</span>`;
     html += `<span class="rclass">${race[SR.SURFACE]}${race[SR.DIST]}m</span>`;
-    html += `<span class="rclass">${classLabel(race[SR.CLASS], '')}</span>`;
+    html += `<span class="rclass">${esc(classLabel(race[SR.CLASS], ""))}</span>`;
     // レース名は特別戦・重賞のみ付くので、ある場合だけ行を足す
     const rName = raceNameLabel(race[SR.RACE_NAME], race[SR.CLASS]);
-    if (rName) html += `<span class="rclass rname">${rName}</span>`;
+    if (rName) html += `<span class="rclass rname">${esc(rName)}</span>`;
     html += `</button>`;
   }
   html += `</div></div>`;
@@ -845,8 +853,8 @@ function renderShutuba() {
       html += `<div class="race-card" style="margin-top:0">`;
       html += `<div style="padding:10px 12px;font-weight:600;font-size:13px;border-bottom:1px solid #eee">`;
       const rName = raceNameLabel(race[SR.RACE_NAME], race[SR.CLASS]);
-      html += `${race[SR.VENUE]} ${race[SR.RACENUM]}R ${race[SR.SURFACE]}${race[SR.DIST]}m ${classLabel(race[SR.CLASS], '')}`;
-      html += `${rName ? ' ' + rName : ''}</div>`;
+      html += `${esc(race[SR.VENUE])} ${race[SR.RACENUM]}R ${esc(race[SR.SURFACE])}${race[SR.DIST]}m ${esc(classLabel(race[SR.CLASS], ""))}`;
+      html += `${rName ? " " + esc(rName) : ""}</div>`;
 
       // ソート・フィルタコントロール
       const sortOpt = (v, label) => `<option value="${v}"${shutubaSortMode===v?' selected':''}>${label}</option>`;
@@ -1036,24 +1044,24 @@ function buildPastRaces(pastRaces) {
     html += `<div class="pr-idx ${cls}">${isNaN(ability) ? '-' : ability}${isRef ? '*' : ''}</div>`;
     html += `<div class="${isWin ? 'pr-rank-win' : 'pr-rank'}">${rank}着</div>`;
     if (refHorse) {
-      html += `<div class="pr-ref-horse">${refHorse}(${margin})</div>`;
+      html += `<div class="pr-ref-horse">${esc(refHorse)}(${esc(margin)})</div>`;
     }
     if (raceId && dateStr) {
-      html += `<div class="pr-info"><a class="pr-link" href="?race=${raceId}" target="_blank" onclick="event.stopPropagation()">${dateStr} ${venue}</a></div>`;
+      html += `<div class="pr-info"><a class="pr-link" href="?race=${raceId}" target="_blank" onclick="event.stopPropagation()">${dateStr} ${esc(venue)}</a></div>`;
     } else {
-      html += `<div class="pr-info">${dateStr} ${venue}</div>`;
+      html += `<div class="pr-info">${dateStr} ${esc(venue)}</div>`;
     }
     const pCls = classLabel(p[SP.CLASS], p[SP.GRADE]);
     const pName = raceNameLabel(p[SP.RACE_NAME], p[SP.CLASS]);
     if (pCls || pName) {
-      html += `<div class="pr-info">${pCls}${pName ? ` <span class="pr-rname">${pName}</span>` : ''}</div>`;
+      html += `<div class="pr-info">${esc(pCls)}${pName ? ` <span class="pr-rname">${esc(pName)}</span>` : ""}</div>`;
     }
     const pCond = p[SP.COND] || '';
     html += `<div class="pr-info">${surfDisp}${p[SP.DIST]}${pCond ? ' ' + pCond : ''}${baba ? ' ' + baba : ''}</div>`;
     html += `<div class="pr-time">${time}${last3f ? '(' + last3f + ')' : ''}</div>`;
     if (jockey || weight || gate || pop) {
       const jocParts = [jockey, weight ? weight : '', gate ? gate + '番' : '', pop ? pop + '人' : ''].filter(Boolean);
-      html += `<div class="pr-info">${jocParts.join(' ')}</div>`;
+      html += `<div class="pr-info">${esc(jocParts.join(" "))}</div>`;
     }
     if (passing) html += `<div class="pr-info">${passing}</div>`;
     html += `</div>`;
