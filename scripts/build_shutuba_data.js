@@ -15,6 +15,15 @@ const BABA_DIFF_FILE = path.join(__dirname, "..", "baba_diff.json");
 const DIRT_SCALE_A = 0.000425;
 const DIRT_SCALE_B = 0.352;
 
+// 今日の日付(YYYYMMDD)を日本時間で返す
+function jstToday() {
+  const now = new Date();
+  const jst = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + (9 * 3600000));
+  return String(jst.getFullYear())
+    + String(jst.getMonth() + 1).padStart(2, "0")
+    + String(jst.getDate()).padStart(2, "0");
+}
+
 function timeToSec(t) {
   if (!t) return null;
   const m = t.match(/^(\d+):(\d+\.\d+)$/);
@@ -369,8 +378,21 @@ function main() {
 
   // 各日付のレースをレース番号順でソート & 出力
   const allDates = Object.keys(byDate).sort().reverse();
-  const dates = filterDates.size ? allDates.filter(d => filterDates.has(d)) : allDates;
+  let dates = filterDates.size ? allDates.filter(d => filterDates.has(d)) : allDates;
   if (filterDates.size) console.log(`Date filter [${[...filterDates].join(",")}]: ${dates.length}/${allDates.length} dates`);
+
+  // 開催済みの日は出馬表を再生成しない（--date 指定時と --all 時は除く）。
+  // 過去走(過去5走)は新しい結果が出るたびに変わるため、全日付を作り直すと
+  // レース終了済みの出馬表JSONまで毎回書き換わり、リポジトリが肥大化する。
+  // 終わったレースの出馬表は履歴であり更新する意味がない。
+  if (!filterDates.size && !process.argv.includes("--all")) {
+    const today = jstToday();
+    const before = dates.length;
+    dates = dates.filter(d => d >= today || !fs.existsSync(path.join(OUTPUT_DIR, `shutuba_${d}.json`)));
+    const skipped = before - dates.length;
+    if (skipped > 0) console.log(`開催済みの${skipped}日はスキップ（--all で強制再生成）`);
+  }
+
   for (const date of dates) {
     byDate[date].sort((a, b) => {
       // venue then raceNum

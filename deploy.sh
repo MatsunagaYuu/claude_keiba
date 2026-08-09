@@ -12,13 +12,17 @@ set -e
 cd "$(dirname "$0")"
 export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
 
+echo "=== ビューアデータビルド ==="
+# baba_diff.json は内製v2で管理（batch_result.sh が --append で更新）。ここで再生成しないこと
+# build_shutuba_data.js は開催済みの日をスキップするので、全件走らせても
+# 過去日のJSONは書き換わらない（--build 指定時のみ --all で強制再生成）
+node scripts/build_viewer_data.js
 if [ "$1" = "--build" ]; then
-  echo "=== ビューアデータ全件ビルド ==="
-  # baba_diff.json は内製v2で管理（batch_result.sh が --append で更新）。ここで再生成しないこと
-  node scripts/build_viewer_data.js
+  node scripts/build_shutuba_data.js --all
+else
   node scripts/build_shutuba_data.js
-  echo ""
 fi
+echo ""
 
 TARGETS="docs/ baba_diff.json venue_calibration.json external_baba_diff.json kaisai_calendar.json"
 
