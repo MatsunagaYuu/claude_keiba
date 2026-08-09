@@ -21,28 +21,48 @@ function fetchHTML(raceId) {
 /**
  * クラス名をパース
  * "3歳以上 C4ー3"                          → "C4"
+ * "3歳以上 C3ー2 C4ー1"                    → "C3C4"（異級混合戦）
+ * "C2三四五(C2四)"                         → "C2"（同一級の組レンジ。級は1つ）
  * "3歳条件 未勝利"                          → "未勝利"
- * "2歳 新馬"                               → "新馬"
- * "3歳以上 A1"                             → "A1"
  * "JRA認定競走フレッシュチャレンジ競走(2歳)"  → "新馬"
- * "25周年キレートレモン特別(3歳) OP"         → "OP"
- * "門別開幕!すぱっと4倍特別(B3)"            → "B3"
- * "エピファネイア・プレミアム(B2)"            → "B2"
- * "3歳 C4 40万円以下"                       → "C4"
+ * "JRA認定アタックチャレンジ競走(2歳)"       → "未勝利"
+ * "JRA認定ウィナーズチャレンジ6競走(2歳)"    → "OP"
+ * "北海道スプリントカップ Jpn3"              → "Jpn3"（ダートグレード競走）
+ * "3歳条件 4ー2" / "3歳40万円以下"          → "3歳"（南関東の組戦）
+ * "牡羊座特別(3歳)"                         → "3歳"
  */
 function parseClass(raceName) {
   const name = raceName.replace(/\s+/g, " ").trim();
-  // JRA認定競走（フレッシュチャレンジ/スーパーフレッシュチャレン）= 新馬
+
+  // ダートグレード競走（Jpn1/Jpn2/Jpn3）はグレードをそのまま出す。
+  // 東京大賞典など統一GIは "GI" 表記なのでこれも拾う
+  const jpn = name.match(/Jpn([123])/i);
+  if (jpn) return `Jpn${jpn[1]}`;
+  const gi = name.match(/\bG(I{1,3})\b/);
+  if (gi) return `Jpn${gi[1].length}`;
+
+  // 門別の2歳条件体系: フレッシュ=新馬 → アタック=未勝利相当 → ウィナーズ/ターフ=OP相当
   if (name.includes("フレッシュ")) return "新馬";
+  if (name.includes("アタックチャレンジ")) return "未勝利";
+  if (name.includes("ウィナーズチャレンジ") || name.includes("ターフチャレンジ")) return "OP";
+
   if (name.includes("新馬")) return "新馬";
   if (name.includes("未勝利")) return "未勝利";
-  // 重賞（〔H1〕〔H2〕〔H3〕 or "重賞"）
   if (name.includes("重賞") || /〔H\d〕/.test(name)) return "重賞";
-  // OP判定（"OP"が含まれる場合。特別レース名(3歳) OPなど）
   if (/\bOP\b/.test(name) || name.includes("オープン")) return "OP";
-  // A1-C4: 本文中 or 末尾カッコ内 "(B3)" "(C4)" など
-  const classMatch = name.match(/([ABC]\d)/);
-  if (classMatch) return classMatch[1];
+
+  // A1-C4。異級混合戦（C3ー2 C4ー1）は連結、同一級の組レンジ（C2三四五）は1つに畳む
+  const classes = [...new Set(name.match(/[ABC][1-4]/g) || [])];
+  if (classes.length) return classes.join("");
+
+  // 級が数字なしのケース（岩手の「皐月特別(A)」など）
+  const bare = [...new Set((name.match(/\(([ABC])\)/g) || []).map(s => s[1]))];
+  if (bare.length) return bare.join("");
+
+  // 南関東の2歳・3歳条件戦（級ではなく組で分ける）
+  const age = name.match(/([23])歳/);
+  if (age) return `${age[1]}歳`;
+
   return name;
 }
 

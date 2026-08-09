@@ -171,6 +171,8 @@ function main() {
         dist: first["距離"],
         surface: first["芝/ダート"],
         cond: first["馬場"],
+        cls: first["クラス"] || "",
+        grade: first["グレード"] || "",
         rank: r["着順"],
         totalIdx: r["総合指数"],
         abilityIdx: r["能力指数"],
@@ -249,6 +251,8 @@ function main() {
           dist: first["距離"],
           surface: first["芝/ダート"],
           cond: first["馬場"],
+          cls: first["クラス"] || "",
+          grade: "",
           rank: r["着順"],
           totalIdx: r["総合指数"],
           abilityIdx: "",
@@ -322,7 +326,7 @@ function main() {
         h.date, h.venue, h.dist, h.surface, h.cond, h.rank, h.totalIdx, h.abilityIdx,
         h.babaSpeed, h.time, h.last3f, h.raceId, h.passing, h.ref || "",
         h.jockey || "", h.weight || "", h.gate || "", h.pop || "",
-        h.refHorse || "", h.margin || "",
+        h.refHorse || "", h.margin || "", h.cls || "", h.grade || "",
       ]);
 
       horses.push([
@@ -359,7 +363,7 @@ function main() {
           h.date, h.venue, h.dist, h.surface, h.cond, h.rank, h.totalIdx, h.abilityIdx,
           h.babaSpeed, h.time, h.last3f, h.raceId, h.passing, h.ref || "",
           h.jockey || "", h.weight || "", h.gate || "", h.pop || "",
-          h.refHorse || "", h.margin || "",
+          h.refHorse || "", h.margin || "", h.cls || "", h.grade || "",
         ]);
         horses.push([
           r["枠番"], r["馬番"], r["馬名"], r["性齢"], r["斤量"], r["騎手"],

@@ -65,6 +65,20 @@ function scrapeShutuba(raceId) {
   const venue = spans2[1] || "";     // "東京"
   const dayNum = spans2[2] || "";    // "7日目"
 
+  // 条件クラス: RaceData02 の "サラ系３歳以上 ２勝クラス" から抽出。
+  // 結果側(race_index)の16クラス区分と揃えた表記にする（新馬/未勝利/1勝/2勝/3勝/OP）。
+  // レース名(RaceName)は「大垣特別」のような特別名なのでクラス判定には使えない。
+  const data02 = $(".RaceData02").text().replace(/\s+/g, " ").trim();
+  const raceClass = (() => {
+    const zen = { "１": "1", "２": "2", "３": "3" };
+    if (/新馬/.test(data02)) return "新馬";
+    if (/未勝利/.test(data02)) return "未勝利";
+    const win = data02.match(/([１２３1-3])勝クラス/);
+    if (win) return `${zen[win[1]] || win[1]}勝`;
+    if (/オープン|リステッド|重賞/.test(data02)) return "OP";
+    return "";
+  })();
+
   // Race number from RaceNum
   const raceNum = $(".RaceNum").text().trim().replace("R", "");
 
@@ -104,7 +118,8 @@ function scrapeShutuba(raceId) {
     競馬場名: venue,
     開催: kaisaiNum,
     開催日: dayNum,
-    クラス: raceName,
+    クラス: raceClass || raceName,
+    レース名: raceName,
     "芝/ダート": surface,
     距離: distance,
     horses,
@@ -113,14 +128,14 @@ function scrapeShutuba(raceId) {
 
 function toCSV(raceData) {
   const headers = [
-    "競馬場名", "開催", "開催日", "クラス", "芝/ダート", "距離",
+    "競馬場名", "開催", "開催日", "クラス", "レース名", "芝/ダート", "距離",
     "枠番", "馬番", "馬名", "馬ID", "性齢", "斤量", "騎手", "厩舎",
   ];
   const lines = [toCSVLine(headers)];
   for (const h of raceData.horses) {
     lines.push(toCSVLine([
       raceData.競馬場名, raceData.開催, raceData.開催日,
-      raceData.クラス, raceData["芝/ダート"], raceData.距離,
+      raceData.クラス, raceData.レース名, raceData["芝/ダート"], raceData.距離,
       h.枠番, h.馬番, h.馬名, h.馬ID, h.性齢, h.斤量, h.騎手, h.厩舎,
     ]));
   }

@@ -283,7 +283,21 @@ const H = { RANK:0, GATE:1, NUM:2, NAME:3, AGE:4, WEIGHT:5, JOCKEY:6, TIME:7, MA
 // 出馬表用インデックス
 const SR = { ID:0, VENUE:1, RACENUM:2, CLASS:3, SURFACE:4, DIST:5, HORSES:6 };
 const SH = { GATE:0, NUM:1, NAME:2, AGE:3, WEIGHT:4, JOCKEY:5, PAST:6 };
-const SP = { DATE:0, VENUE:1, DIST:2, SURFACE:3, COND:4, RANK:5, TOTAL:6, ABILITY:7, BABA_SPEED:8, TIME:9, LAST3F:10, RACE_ID:11, PASSING:12, REF:13, JOCKEY:14, WEIGHT:15, GATE:16, POP:17, REF_HORSE:18, MARGIN:19 };
+const SP = { DATE:0, VENUE:1, DIST:2, SURFACE:3, COND:4, RANK:5, TOTAL:6, ABILITY:7, BABA_SPEED:8, TIME:9, LAST3F:10, RACE_ID:11, PASSING:12, REF:13, JOCKEY:14, WEIGHT:15, GATE:16, POP:17, REF_HORSE:18, MARGIN:19, CLASS:20, GRADE:21 };
+
+// クラス表示の正規化。JRAは 新馬/未勝利/1勝/2勝/3勝/OP/OP(L)/G1-G3 に、
+// NARは parseClass() 済みの値（C4/A2B1/Jpn3/2歳 など）をそのまま通す。
+// 注意: JRAのグレード列の "OP" は「オープン」ではなく特別競走（レース名付き）の印で、
+// 2勝クラスの特別戦にも付く。クラス側にOPが無ければ無視する。
+function classLabel(cls, grade) {
+  cls = cls || '';
+  grade = grade || '';
+  if (/^G[123]$/.test(grade)) return grade;
+  if (grade === 'L') return 'OP(L)';
+  if (cls.includes('OP')) return 'OP';
+  const m = cls.match(/新馬|未勝利|[123]勝/);
+  return m ? m[0] : cls;
+}
 
 let allRaces = [];
 let filtered = [];
@@ -772,7 +786,7 @@ function renderShutuba() {
     html += `<button class="race-btn${sel}" onclick="selectShutubaRace('${id}')">`;
     html += `<span class="rnum">${race[SR.RACENUM]}R</span>`;
     html += `<span class="rclass">${race[SR.SURFACE]}${race[SR.DIST]}m</span>`;
-    html += `<span class="rclass">${race[SR.CLASS]}</span>`;
+    html += `<span class="rclass">${classLabel(race[SR.CLASS], '')}</span>`;
     html += `</button>`;
   }
   html += `</div></div>`;
@@ -981,7 +995,10 @@ function buildPastRaces(pastRaces) {
     } else {
       html += `<div class="pr-info">${dateStr} ${venue}</div>`;
     }
-    html += `<div class="pr-info">${surfDisp}${p[SP.DIST]}${baba ? ' ' + baba : ''}</div>`;
+    const pCls = classLabel(p[SP.CLASS], p[SP.GRADE]);
+    if (pCls) html += `<div class="pr-info">${pCls}</div>`;
+    const pCond = p[SP.COND] || '';
+    html += `<div class="pr-info">${surfDisp}${p[SP.DIST]}${pCond ? ' ' + pCond : ''}${baba ? ' ' + baba : ''}</div>`;
     html += `<div class="pr-time">${time}${last3f ? '(' + last3f + ')' : ''}</div>`;
     if (jockey || weight || gate || pop) {
       const jocParts = [jockey, weight ? weight : '', gate ? gate + '番' : '', pop ? pop + '人' : ''].filter(Boolean);
