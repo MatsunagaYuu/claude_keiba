@@ -114,6 +114,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
 .past-race .pr-idx { font-weight: 700; font-size: 11px; }
 .past-race .pr-rank { font-size: 9px; color: #555; }
 .past-race .pr-info { color: #888; white-space: nowrap; }
+.past-race .pr-rname { color: #1a5c2a; font-weight: 600; }
 .past-race .pr-time { color: #555; white-space: nowrap; }
 .past-race a.pr-link { color: #1a5c2a; text-decoration: underline; cursor: pointer; }
 .past-race a.pr-link:active { color: #0d3015; }
@@ -285,7 +286,7 @@ const H = { RANK:0, GATE:1, NUM:2, NAME:3, AGE:4, WEIGHT:5, JOCKEY:6, TIME:7, MA
 // 出馬表用インデックス
 const SR = { ID:0, VENUE:1, RACENUM:2, CLASS:3, SURFACE:4, DIST:5, HORSES:6, RACE_NAME:7 };
 const SH = { GATE:0, NUM:1, NAME:2, AGE:3, WEIGHT:4, JOCKEY:5, PAST:6 };
-const SP = { DATE:0, VENUE:1, DIST:2, SURFACE:3, COND:4, RANK:5, TOTAL:6, ABILITY:7, BABA_SPEED:8, TIME:9, LAST3F:10, RACE_ID:11, PASSING:12, REF:13, JOCKEY:14, WEIGHT:15, GATE:16, POP:17, REF_HORSE:18, MARGIN:19, CLASS:20, GRADE:21 };
+const SP = { DATE:0, VENUE:1, DIST:2, SURFACE:3, COND:4, RANK:5, TOTAL:6, ABILITY:7, BABA_SPEED:8, TIME:9, LAST3F:10, RACE_ID:11, PASSING:12, REF:13, JOCKEY:14, WEIGHT:15, GATE:16, POP:17, REF_HORSE:18, MARGIN:19, CLASS:20, GRADE:21, RACE_NAME:22 };
 
 // クラス表示の正規化。JRAは 新馬/未勝利/1勝/2勝/3勝/OP/OP(L)/G1-G3 に、
 // NARは parseClass() 済みの値（C4/A2B1/Jpn3/2歳 など）をそのまま通す。
@@ -312,6 +313,18 @@ function isConditionName(name) {
 // 旧形式の出馬表CSVはクラス欄にレース名が入っており、結果未確定で補完もできないと
 // クラスとレース名が同じ値になるため。
 function raceNameLabel(name, cls) {
+  if (!name) return '';
+  // NARのレース名はクラスや格を含む（「〜特別(B1)」「北斗盃〔H3〕 重賞」）。
+  // クラスは別途表示するので接尾辞を落として固有名だけにする
+  name = name
+    .replace(/〔H\d〕/g, '')
+    .replace(/\((?:[ABC][1-4])+\)/g, '')
+    .replace(/\([23]歳\)/g, '')
+    .replace(/\s*(重賞|OP|Jpn[123]|G[I1-3]{1,3})\s*$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  // 「JRA認定競走フレッシュチャレンジ競走」等は固有名ではなく条件の言い換え
+  if (/^JRA認定.*(チャレンジ|競走)$/.test(name)) return '';
   if (!name || isConditionName(name)) return '';
   if (cls && classLabel(cls, '') === name) return '';
   return name;
@@ -1031,7 +1044,10 @@ function buildPastRaces(pastRaces) {
       html += `<div class="pr-info">${dateStr} ${venue}</div>`;
     }
     const pCls = classLabel(p[SP.CLASS], p[SP.GRADE]);
-    if (pCls) html += `<div class="pr-info">${pCls}</div>`;
+    const pName = raceNameLabel(p[SP.RACE_NAME], p[SP.CLASS]);
+    if (pCls || pName) {
+      html += `<div class="pr-info">${pCls}${pName ? ` <span class="pr-rname">${pName}</span>` : ''}</div>`;
+    }
     const pCond = p[SP.COND] || '';
     html += `<div class="pr-info">${surfDisp}${p[SP.DIST]}${pCond ? ' ' + pCond : ''}${baba ? ' ' + baba : ''}</div>`;
     html += `<div class="pr-time">${time}${last3f ? '(' + last3f + ')' : ''}</div>`;
