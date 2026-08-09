@@ -337,7 +337,7 @@ function main() {
 
     const race = [
       raceId, first["競馬場名"], raceNum, first["クラス"],
-      first["芝/ダート"], first["距離"], horses,
+      first["芝/ダート"], first["距離"], horses, first["レース名"] || "",
     ];
 
     if (!byDate[date]) byDate[date] = [];
@@ -373,7 +373,7 @@ function main() {
 
       const race = [
         raceId, first["競馬場名"], raceNum, first["クラス"],
-        first["芝/ダート"], first["距離"], horses,
+        first["芝/ダート"], first["距離"], horses, first["レース名"] || "",
       ];
       if (!byDate[date]) byDate[date] = [];
       byDate[date].push(race);

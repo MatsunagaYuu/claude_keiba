@@ -165,6 +165,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
 .race-btn .rnum { font-weight: 700; font-size: 13px; }
 .race-btn .rclass { font-size: 9px; color: #777; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .race-btn.selected .rclass { color: #cfe8d4; }
+.race-btn .rname { color: #1a5c2a; font-weight: 600; }
+.race-btn.selected .rname { color: #fff; }
 
 .shutuba-detail { margin-top: 8px; }
 
@@ -281,7 +283,7 @@ const R = { ID:0, YEAR:1, VENUE:2, KAISAI:3, DAY:4, CLASS:5, SURFACE:6, DIST:7, 
 const H = { RANK:0, GATE:1, NUM:2, NAME:3, AGE:4, WEIGHT:5, JOCKEY:6, TIME:7, MARGIN:8, PASSING:9, LAST3F:10, POP:11, ODDS:12, TOTAL:13, LAST3F_IDX:14, ABILITY:15, REF:16 };
 
 // 出馬表用インデックス
-const SR = { ID:0, VENUE:1, RACENUM:2, CLASS:3, SURFACE:4, DIST:5, HORSES:6 };
+const SR = { ID:0, VENUE:1, RACENUM:2, CLASS:3, SURFACE:4, DIST:5, HORSES:6, RACE_NAME:7 };
 const SH = { GATE:0, NUM:1, NAME:2, AGE:3, WEIGHT:4, JOCKEY:5, PAST:6 };
 const SP = { DATE:0, VENUE:1, DIST:2, SURFACE:3, COND:4, RANK:5, TOTAL:6, ABILITY:7, BABA_SPEED:8, TIME:9, LAST3F:10, RACE_ID:11, PASSING:12, REF:13, JOCKEY:14, WEIGHT:15, GATE:16, POP:17, REF_HORSE:18, MARGIN:19, CLASS:20, GRADE:21 };
 
@@ -289,14 +291,42 @@ const SP = { DATE:0, VENUE:1, DIST:2, SURFACE:3, COND:4, RANK:5, TOTAL:6, ABILIT
 // NARは parseClass() 済みの値（C4/A2B1/Jpn3/2歳 など）をそのまま通す。
 // 注意: JRAのグレード列の "OP" は「オープン」ではなく特別競走（レース名付き）の印で、
 // 2勝クラスの特別戦にも付く。クラス側にOPが無ければ無視する。
+// レース名が条件をそのまま書いただけか判定する。
+// 「3歳以上1勝クラス」「2歳 未勝利」「C2三組」などはクラス表示と重複するので出さない。
+// 「札幌記念」「大垣特別」のような固有名だけを表示したい。
+function isConditionName(name) {
+  const stripped = (name || '')
+    .replace(/サラ系/g, '')
+    .replace(/[234]歳以上/g, '').replace(/[234]歳/g, '')
+    .replace(/新馬|未勝利|オープン/g, '')
+    .replace(/[1-3]勝クラス/g, '')
+    .replace(/[ABC][1-4]/g, '')
+    .replace(/条件|クラス|組|以下|万円/g, '')
+    .replace(/[0-9０-９ー\-−]/g, '')
+    .replace(/[\s()（）一二三四五六七八九十]/g, '')
+    .trim();
+  return stripped === '';
+}
+
+// cls を渡すと、クラス表示と同じ文字列になる場合は空を返す（重複表示の防止）。
+// 旧形式の出馬表CSVはクラス欄にレース名が入っており、結果未確定で補完もできないと
+// クラスとレース名が同じ値になるため。
+function raceNameLabel(name, cls) {
+  if (!name || isConditionName(name)) return '';
+  if (cls && classLabel(cls, '') === name) return '';
+  return name;
+}
+
 function classLabel(cls, grade) {
   cls = cls || '';
   grade = grade || '';
   if (/^G[123]$/.test(grade)) return grade;
   if (grade === 'L') return 'OP(L)';
-  if (cls.includes('OP')) return 'OP';
+  // 障害競走は平地と別体系なので接頭辞を残す（障害未勝利 / 障害OP など）
+  const jump = cls.startsWith('障害') ? '障害' : '';
+  if (cls.includes('OP')) return `${jump}OP`;
   const m = cls.match(/新馬|未勝利|[123]勝/);
-  return m ? m[0] : cls;
+  return m ? `${jump}${m[0]}` : cls;
 }
 
 let allRaces = [];
@@ -787,6 +817,9 @@ function renderShutuba() {
     html += `<span class="rnum">${race[SR.RACENUM]}R</span>`;
     html += `<span class="rclass">${race[SR.SURFACE]}${race[SR.DIST]}m</span>`;
     html += `<span class="rclass">${classLabel(race[SR.CLASS], '')}</span>`;
+    // レース名は特別戦・重賞のみ付くので、ある場合だけ行を足す
+    const rName = raceNameLabel(race[SR.RACE_NAME], race[SR.CLASS]);
+    if (rName) html += `<span class="rclass rname">${rName}</span>`;
     html += `</button>`;
   }
   html += `</div></div>`;
@@ -798,7 +831,9 @@ function renderShutuba() {
       html += `<div class="shutuba-detail">`;
       html += `<div class="race-card" style="margin-top:0">`;
       html += `<div style="padding:10px 12px;font-weight:600;font-size:13px;border-bottom:1px solid #eee">`;
-      html += `${race[SR.VENUE]} ${race[SR.RACENUM]}R ${race[SR.SURFACE]}${race[SR.DIST]}m ${race[SR.CLASS]}</div>`;
+      const rName = raceNameLabel(race[SR.RACE_NAME], race[SR.CLASS]);
+      html += `${race[SR.VENUE]} ${race[SR.RACENUM]}R ${race[SR.SURFACE]}${race[SR.DIST]}m ${classLabel(race[SR.CLASS], '')}`;
+      html += `${rName ? ' ' + rName : ''}</div>`;
 
       // ソート・フィルタコントロール
       const sortOpt = (v, label) => `<option value="${v}"${shutubaSortMode===v?' selected':''}>${label}</option>`;

@@ -71,12 +71,14 @@ function scrapeShutuba(raceId) {
   const data02 = $(".RaceData02").text().replace(/\s+/g, " ").trim();
   const raceClass = (() => {
     const zen = { "１": "1", "２": "2", "３": "3" };
-    if (/新馬/.test(data02)) return "新馬";
-    if (/未勝利/.test(data02)) return "未勝利";
+    // 障害競走は平地と別体系（障害未勝利／障害オープン）なので先に判定する
+    const jump = /障害/.test(data02) ? "障害" : "";
+    if (/新馬/.test(data02)) return `${jump}新馬`;
+    if (/未勝利/.test(data02)) return `${jump}未勝利`;
     const win = data02.match(/([１２３1-3])勝クラス/);
-    if (win) return `${zen[win[1]] || win[1]}勝`;
-    if (/オープン|リステッド|重賞/.test(data02)) return "OP";
-    return "";
+    if (win) return `${jump}${zen[win[1]] || win[1]}勝`;
+    if (/オープン|リステッド|重賞/.test(data02)) return `${jump}OP`;
+    return jump;
   })();
 
   // Race number from RaceNum
