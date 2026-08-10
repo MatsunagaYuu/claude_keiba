@@ -55,6 +55,31 @@ JRAの競馬レースデータをスクレイピングし、独自の総合指�
 
 ## バッチ運用
 
+### 自動実行（launchd・2026-08-11 稼働開始）
+
+| ジョブ | タイミング | 内容 |
+|---|---|---|
+| `com.matsunagayu.keiba-daily` | 毎日 17:00 | JRA結果 + JRA出馬表 + NAR + デプロイ |
+| `com.matsunagayu.keiba-shutuba` | 金・土 10:30 | JRA出馬表 + デプロイのみ（`--shutuba`） |
+
+plistは `~/Library/LaunchAgents/`。エントリポイントは `batch_daily.sh`。
+
+```bash
+launchctl list | grep keiba                    # 稼働確認（左が0なら前回正常終了）
+launchctl start com.matsunagayu.keiba-daily    # 手動起動
+tail -f log/batch_daily.log                    # ログ
+```
+
+**過去にlaunchdでつまづいた点（再発防止）**
+- `git push` が `could not read Username` で失敗 → `gh auth setup-git` で非対話認証に変更済み。
+  `credential.helper=osxkeychain` のままだと非対話環境でキーチェーン解錠を求めて落ちる
+- plistの `ProgramArguments` に `caffeinate` を置くと `Operation not permitted`。
+  macOSは実行主体のプロセスで権限判定するため `~/Documents` が読めなくなる。
+  `/bin/bash` を直接呼び、スリープ抑止は `batch_daily.sh` 内で `caffeinate -i -s -w $$ &` として行う
+- 水曜のJRA出馬表は無料プランだと未確定データなので `batch_daily.sh` がスキップする（NAR・結果は実行）
+
+### 手動実行
+
 ```bash
 # 出馬表更新（金曜）
 ./batch_shutuba.sh              # 次開催日を自動特定

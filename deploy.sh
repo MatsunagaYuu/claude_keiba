@@ -12,6 +12,13 @@ set -e
 cd "$(dirname "$0")"
 export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
 
+# batch_daily.sh から呼ばれる個別バッチ用。データ生成だけ各バッチにやらせ、
+# 重い build_viewer_data.js と push は日次バッチの最後に1回だけ実行する
+if [ "${SKIP_DEPLOY:-}" = "1" ]; then
+  echo "=== デプロイはスキップ（日次バッチが最後にまとめて実行） ==="
+  exit 0
+fi
+
 echo "=== ビューアデータビルド ==="
 # baba_diff.json は内製v2で管理（batch_result.sh が --append で更新）。ここで再生成しないこと
 # build_shutuba_data.js は開催済みの日をスキップするので、全件走らせても

@@ -16,8 +16,21 @@ if [ $# -eq 0 ]; then
 fi
 DATES="$@"
 
-echo "=== 結果取得 (対象日: $DATES) ==="
-node scripts/scrape_nar_result_by_date.js "$(echo $DATES | tr ' ' ',')"
+# 未来日の結果は存在しないので取りに行かない。
+# 日次バッチは数日先まで渡してくる（出馬表のため）ので、ここで弾かないと
+# 1日あたり十数レース分の無駄なリクエストと "No data found" ログが出る
+PAST_DATES=$(node -e "
+  const now = new Date();
+  const today = now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0');
+  console.log(process.argv.slice(1).filter(d => d <= today).join(' '));
+" $DATES)
+
+if [ -n "$PAST_DATES" ]; then
+  echo "=== 結果取得 (対象日: $PAST_DATES) ==="
+  node scripts/scrape_nar_result_by_date.js "$(echo $PAST_DATES | tr ' ' ',')"
+else
+  echo "=== 結果取得: 対象日なし（未来日のみ） ==="
+fi
 
 # --append は対象日に観測が無いとエラー終了する（結果未取得の未来日を含む場合があるため）。
 # 実際に結果CSVが存在する日付だけに絞って渡す。race_id形式 {YYYY}{code}{MMDD}{RR}
