@@ -55,12 +55,18 @@ echo "=== 指数算出 (対象日: $DATES) ==="
 node scripts/calc_index.js --naisei --date $DATES
 
 echo ""
-echo "=== ビューアデータ更新 (対象年: $YEARS) ==="
-node scripts/build_viewer_data.js --year $YEARS
+# batch_daily.sh から呼ばれる時（SKIP_DEPLOY=1）は、最後の deploy.sh が
+# 同じビルドを実行するのでここではスキップする（二重実行の防止）
+if [ "${SKIP_DEPLOY:-}" = "1" ]; then
+  echo "=== ビューアデータ更新・デプロイは日次バッチ側でまとめて実行 ==="
+else
+  echo "=== ビューアデータ更新 (対象年: $YEARS) ==="
+  node scripts/build_viewer_data.js --year $YEARS
 
-echo ""
-echo "=== デプロイ ==="
-./deploy.sh
+  echo ""
+  echo "=== デプロイ ==="
+  ./deploy.sh
+fi
 
 echo ""
 echo "=== レース結果バッチ完了 ==="

@@ -62,13 +62,20 @@ for DATE in $DATES; do
 done
 
 echo ""
-echo "=== ビューアデータ更新 ==="
-node scripts/build_viewer_data.js
-node scripts/build_shutuba_data.js --date $DATES
+# batch_daily.sh から呼ばれる時（SKIP_DEPLOY=1）はビルドもスキップする。
+# 最後の deploy.sh が同じものを実行するので、ここで走らせると二重になり
+# build_viewer_data.js(81秒) + build_shutuba_data.js(89秒) を丸ごと余分に払う
+if [ "${SKIP_DEPLOY:-}" = "1" ]; then
+  echo "=== ビューアデータ更新・デプロイは日次バッチ側でまとめて実行 ==="
+else
+  echo "=== ビューアデータ更新 ==="
+  node scripts/build_viewer_data.js
+  node scripts/build_shutuba_data.js --date $DATES
 
-echo ""
-echo "=== デプロイ ==="
-./deploy.sh
+  echo ""
+  echo "=== デプロイ ==="
+  ./deploy.sh
+fi
 
 echo ""
 echo "=== NARバッチ完了 ==="

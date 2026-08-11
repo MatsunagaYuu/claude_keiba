@@ -32,12 +32,18 @@ for DATE in $DATES; do
 done
 
 echo ""
-echo "=== ビューアデータ生成 (対象日: $DATES) ==="
-node scripts/build_shutuba_data.js --date $DATES
+# batch_daily.sh から呼ばれる時（SKIP_DEPLOY=1）は、最後の deploy.sh が
+# 同じビルドを実行するのでここではスキップする（二重実行の防止）
+if [ "${SKIP_DEPLOY:-}" = "1" ]; then
+  echo "=== ビューアデータ生成・デプロイは日次バッチ側でまとめて実行 ==="
+else
+  echo "=== ビューアデータ生成 (対象日: $DATES) ==="
+  node scripts/build_shutuba_data.js --date $DATES
 
-echo ""
-echo "=== デプロイ ==="
-./deploy.sh
+  echo ""
+  echo "=== デプロイ ==="
+  ./deploy.sh
+fi
 
 echo ""
 echo "=== 出馬表バッチ完了 ==="
