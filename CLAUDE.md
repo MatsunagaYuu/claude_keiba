@@ -57,18 +57,29 @@ JRAの競馬レースデータをスクレイピングし、独自の総合指�
 
 ### 自動実行（launchd・2026-08-11 稼働開始）
 
-| ジョブ | タイミング | 内容 |
-|---|---|---|
-| `com.matsunagayu.keiba-daily` | 毎日 17:00 | JRA結果 + JRA出馬表 + NAR + デプロイ |
-| `com.matsunagayu.keiba-shutuba` | 金・土 10:30 | JRA出馬表 + デプロイのみ（`--shutuba`） |
+| ジョブ | タイミング | 内容 | ログ |
+|---|---|---|---|
+| `keiba-jra-result` | 月 17:00 | JRA結果 → JRA出馬表 → デプロイ | `log/jra_result.log` |
+| `keiba-jra-shutuba` | 木17:00 / 金10:30 / 土10:30 | JRA出馬表 → デプロイ | `log/jra_shutuba.log` |
+| `keiba-nar` | 毎日 9:00 | NAR結果(前日) + 出馬表(翌日・翌々日) → デプロイ | `log/nar.log` |
 
-plistは `~/Library/LaunchAgents/`。エントリポイントは `batch_daily.sh`。
+plistは `~/Library/LaunchAgents/com.matsunagayu.*`。エントリポイントは `batch_daily.sh <mode>`。
 
 ```bash
-launchctl list | grep keiba                    # 稼働確認（左が0なら前回正常終了）
-launchctl start com.matsunagayu.keiba-daily    # 手動起動
-tail -f log/batch_daily.log                    # ログ
+launchctl list | grep keiba                          # 稼働確認（左が0なら前回正常終了）
+launchctl start com.matsunagayu.keiba-nar            # 手動起動
+./batch_daily.sh --nar                               # 直接実行も可
 ```
+
+- 月曜17:00は結果と出馬表を1ジョブにまとめている。同時刻に2ジョブ立てると
+  多重起動防止ロックを取り合って片方がスキップされるため
+- NARの結果は前日分のみ（ナイターが21時頃まであるので当日は翌朝に回す）。
+  未来日は結果取得の対象外（`batch_nar.sh` が当日以前に絞る）
+- NAR出馬表は取得済みでも再取得する。出走取消・騎手変更が反映されるため
+  翌々日→翌日の二度取りに意味がある
+- 対象会場は土曜非開催のため日曜の結果取得は通常空振るが、例外開催があるので起動はする（数秒で終わる）
+- NAR馬場差は毎日 `--append` して確定扱いでよい。2週間後に再推定しても
+  日レベルRMS 0.008秒（指数0.1pt相当）しか動かないことを実測で確認済み（180日窓のため）
 
 **過去にlaunchdでつまづいた点（再発防止）**
 - `git push` が `could not read Username` で失敗 → `gh auth setup-git` で非対話認証に変更済み。
