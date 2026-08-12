@@ -81,12 +81,23 @@ launchctl start com.matsunagayu.keiba-nar            # 手動起動
 - NAR馬場差は毎日 `--append` して確定扱いでよい。2週間後に再推定しても
   日レベルRMS 0.008秒（指数0.1pt相当）しか動かないことを実測で確認済み（180日窓のため）
 
+**起動経路**: launchd → `~/bin/keiba-batch.sh`（薄いラッパー）→ `batch_daily.sh`。
+`~/Documents` はmacOSのプライバシー保護(TCC)対象で、launchdのスケジュール起動だと
+`posix_spawn(/bin/bash) - Operation not permitted` で拒否されるため、
+保護対象外の `~/bin` を経由する。**plistのパスを直接 `~/Documents/...` に戻さないこと。**
+
 **過去にlaunchdでつまづいた点（再発防止）**
 - `git push` が `could not read Username` で失敗 → `gh auth setup-git` で非対話認証に変更済み。
   `credential.helper=osxkeychain` のままだと非対話環境でキーチェーン解錠を求めて落ちる
 - plistの `ProgramArguments` に `caffeinate` を置くと `Operation not permitted`。
-  macOSは実行主体のプロセスで権限判定するため `~/Documents` が読めなくなる。
-  `/bin/bash` を直接呼び、スリープ抑止は `batch_daily.sh` 内で `caffeinate -i -s -w $$ &` として行う
+  `/bin/bash`（実際はラッパー）を直接呼び、スリープ抑止は `batch_daily.sh` 内で
+  `caffeinate -i -s -w $$ &` として行う
+- **`~/Documents` 内のスクリプトはlaunchdのスケジュール起動で spawn できない**（TCC）。
+  厄介なのは `launchctl start` による手動起動だと呼び出し元の権限を引き継いで**成功してしまう**点で、
+  手動テストでは検出できない。**動作確認は必ずスケジュール起動（時刻を数分後に設定）で行うこと。**
+  対策として `~/bin/keiba-batch.sh` を経由させている。
+  なお `/bin/bash` にFull Disk Accessを与える解法もあるが、全bashスクリプトが
+  全ディスクにアクセスできるようになるため採用しない
 - 水曜のJRA出馬表は無料プランだと未確定データなので `batch_daily.sh` がスキップする（NAR・結果は実行）
 
 ### 手動実行
