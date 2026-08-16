@@ -17108,5 +17108,45 @@
         "day": 8
       }
     ]
+  },
+  {
+    "date": "20260822",
+    "venues": [
+      {
+        "venue": "新潟",
+        "kaisai": 3,
+        "day": 1
+      },
+      {
+        "venue": "中京",
+        "kaisai": 3,
+        "day": 1
+      },
+      {
+        "venue": "札幌",
+        "kaisai": 2,
+        "day": 1
+      }
+    ]
+  },
+  {
+    "date": "20260823",
+    "venues": [
+      {
+        "venue": "新潟",
+        "kaisai": 3,
+        "day": 2
+      },
+      {
+        "venue": "中京",
+        "kaisai": 3,
+        "day": 2
+      },
+      {
+        "venue": "札幌",
+        "kaisai": 2,
+        "day": 2
+      }
+    ]
   }
 ]
