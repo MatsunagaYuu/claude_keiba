@@ -60,7 +60,7 @@ JRAの競馬レースデータをスクレイピングし、独自の総合指�
 | ジョブ | タイミング | 内容 | ログ |
 |---|---|---|---|
 | `keiba-jra-result` | 月 17:00 | JRA結果 → JRA出馬表 → デプロイ | `log/jra_result.log` |
-| `keiba-jra-shutuba` | 木17:00 / 金10:30 / 土10:30 | JRA出馬表 → デプロイ | `log/jra_shutuba.log` |
+| `keiba-jra-shutuba` | 日17:30 / 木17:00 / 金10:30 / 土10:30 | JRA出馬表 → デプロイ | `log/jra_shutuba.log` |
 | `keiba-nar` | 毎日 9:00 | NAR結果(前日) + 出馬表(翌日・翌々日) → デプロイ | `log/nar.log` |
 
 plistは `~/Library/LaunchAgents/com.matsunagayu.*`。エントリポイントは `batch_daily.sh <mode>`。
