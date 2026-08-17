@@ -68,19 +68,35 @@ jra_shutuba() {
 # --- JRA結果 ---
 # 直近開催日のうち未処理のものだけ実行する。毎回流すと同じ日を --append し直して
 # 「過去日は凍結」の方針を崩すため。JRAのrace_idは開催回/日目ベースで日付を持たないので、
-# 生成済みビューアデータ(docs/data_YYYY.json)の日付フィールドで判定する
+# 生成済みビューアデータ(docs/data_YYYY.json)の日付フィールドで判定する。
+#
+# 判定は「日付」ではなく「その日にJRA開催が予定されていた会場が揃っているか」で行う。
+# data_YYYY.json はNARの結果も同じ日付フィールドで合流してくるので、日付の有無だけで見ると
+# 前日分を毎朝取り込む keiba-nar のせいでJRA結果が丸ごとスキップされる
+# （2026-08-15/16 で実際に発生。土曜にNAR開催があると必ず踏む）。
+# 会場単位なら3場のうち1場だけ取り込み損ねたケースも拾える。
+# なお開催中止で結果が永遠に来ない日は毎回対象になるが、--last は直近の週末グループしか
+# 返さないので次の開催で自然に対象外になる。
 jra_result() {
   local last need
   last=$(node scripts/get_next_dates.js --last 2>/dev/null | tr '\n' ' ' | xargs || true)
   need=$(node -e "
     const fs=require('fs');
     const dates='$last'.split(/\s+/).filter(Boolean);
+    const cal=JSON.parse(fs.readFileSync('kaisai_calendar.json','utf-8'));
+    const planned={};
+    for(const e of cal) planned[e.date]=e.venues.map(v=>v.venue);
     const need=[];
     for(const d of dates){
       const f='docs/data_'+d.slice(0,4)+'.json';
-      let done=false;
-      if(fs.existsSync(f)) done=JSON.parse(fs.readFileSync(f,'utf-8')).some(r=>r[11]===d);
-      if(!done) need.push(d);
+      const have=new Set();
+      if(fs.existsSync(f)){
+        for(const r of JSON.parse(fs.readFileSync(f,'utf-8'))) if(r[11]===d) have.add(r[2]);
+      }
+      const want=planned[d]||[];
+      // カレンダーに無い日は判断材料が無いので、従来どおりデータの有無で見る
+      const missing=want.length ? want.filter(v=>!have.has(v)) : (have.size ? [] : [d]);
+      if(missing.length) need.push(d);
     }
     console.log(need.join(' '));
   " 2>/dev/null || echo "")
