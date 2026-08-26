@@ -193,6 +193,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
 .trend-table td { padding: 4px 6px; border-bottom: 1px solid #f0f0f0; text-align: center; white-space: nowrap; }
 .trend-table tr:nth-child(even) { background: #fafafa; }
 .trend-table .lbl { text-align: left; }
+.trend-surface { text-align: left; background: #eef4ef; font-weight: 700; color: #1a5c2a; }
 .trend-val { font-weight: 700; font-variant-numeric: tabular-nums; }
 .trend-ref { color: #888; font-variant-numeric: tabular-nums; }
 .trend-hint { font-size: 11px; }
@@ -1271,31 +1272,42 @@ function corrOf(pts) {
   return sxy / Math.sqrt(sxx * syy);
 }
 
+// 路面別に集計する。芝とダートは別コースなので、馬場差だけでなく
+// バイアスや脚質傾向も混ぜると意味を失う。
 // 馬番・着順・通過順位はいずれも頭数で割って相対化する（頭数の違うレースを混ぜるため）
 function trendMetrics(races) {
-  const pts = [], in3pos = [], in3gate = [], baba = {};
-  let used = 0;
+  const acc = {};
   for (const race of races) {
+    const surface = race[R.SURFACE] || '';
+    const a = acc[surface] = acc[surface] || { pts: [], in3pos: [], in3gate: [], baba: [], races: 0, used: 0 };
+    a.races++;
+    const b = babaNum(race[R.BABA_SPEED]);
+    if (b !== null) a.baba.push(b);
     const horses = (race[R.HORSES] || []).filter(h => /^\d+$/.test(String(h[H.RANK])));
     const N = horses.length;
-    const b = babaNum(race[R.BABA_SPEED]);
-    if (b !== null) (baba[race[R.SURFACE]] = baba[race[R.SURFACE]] || []).push(b);
     if (N < 5) continue;
-    used++;
+    a.used++;
     for (const h of horses) {
       const num = parseInt(h[H.NUM]), rank = parseInt(h[H.RANK]);
       if (!num || !rank) continue;
-      pts.push({ x: num / N, y: rank / N });
+      a.pts.push({ x: num / N, y: rank / N });
       if (rank <= 3) {
-        in3gate.push(num / N);
+        a.in3gate.push(num / N);
         const p1 = parseInt(String(h[H.PASSING] || '').split('-')[0]);
-        if (p1) in3pos.push(p1 / N);
+        if (p1) a.in3pos.push(p1 / N);
       }
     }
   }
-  const babaAvg = {};
-  for (const [s, arr] of Object.entries(baba)) babaAvg[s] = avgOf(arr);
-  return { races: races.length, used, bias: corrOf(pts), in3pos: avgOf(in3pos), in3gate: avgOf(in3gate), baba: babaAvg };
+  const out = {};
+  for (const [surface, a] of Object.entries(acc)) {
+    out[surface] = {
+      races: a.races, used: a.used, horses: a.pts.length,
+      baba: avgOf(a.baba), babaN: a.baba.length, bias: corrOf(a.pts),
+      in3pos: avgOf(a.in3pos), in3posN: a.in3pos.length,
+      in3gate: avgOf(a.in3gate), in3gateN: a.in3gate.length,
+    };
+  }
+  return out;
 }
 
 function initTrendTab() {
@@ -1369,9 +1381,12 @@ function renderTrend() {
   const ref = trendMetrics(all.filter(r => r[R.VENUE] === trendVenue));
   statsEl.textContent = `${trendVenue} ${date.substring(4,6)}/${date.substring(6,8)} ${dayRaces.length}レース`;
 
-  // 当日と会場平均の差を、向き付きの言葉にする
-  const hint = (d, r, pos, neg, thr) => {
-    if (d === null || r === null) return '<span class="trend-flat">-</span>';
+  // 当日と会場平均の差を、向き付きの言葉にする。
+  // 標本が少ないときは値だけ出して判定は伏せる（3着内3頭で「先行有利」とは言えない）
+  const MIN_N = 9;
+  const hint = (d, r, pos, neg, thr, n) => {
+    if (d === null || d === undefined || r === null || r === undefined) return '<span class="trend-flat">-</span>';
+    if (n !== undefined && n < MIN_N) return '<span class="trend-flat">標本不足</span>';
     const diff = d - r;
     if (Math.abs(diff) < thr) return '<span class="trend-flat">平常</span>';
     return diff > 0 ? `<span class="trend-in">${pos}</span>` : `<span class="trend-out">${neg}</span>`;
@@ -1382,25 +1397,28 @@ function renderTrend() {
   html += `<table class="trend-table">`;
   html += `<tr><th class="lbl">指標</th><th>当日</th><th>会場平均(${year}年)</th><th>判定</th></tr>`;
 
-  for (const surface of Object.keys(day.baba).sort()) {
-    html += `<tr><td class="lbl">馬場差（${esc(surface)}）</td>`;
-    html += `<td class="trend-val">${num(day.baba[surface], 2)}</td>`;
-    html += `<td class="trend-ref">${num(ref.baba[surface], 2)}</td>`;
-    html += `<td class="trend-hint">${hint(day.baba[surface], ref.baba[surface], '時計かかる', '高速', 0.15)}</td></tr>`;
+  // 芝を先に出す（芝→ダートの順が競馬の慣習に近い）
+  const surfaces = Object.keys(day).sort((a, b) => (a === '芝' ? -1 : b === '芝' ? 1 : a.localeCompare(b)));
+  for (const surface of surfaces) {
+    const d = day[surface], r = ref[surface] || {};
+    html += `<tr><td class="trend-surface" colspan="4">${esc(surface)}　当日${d.races}R / 会場平均${r.races || 0}R</td></tr>`;
+    const row = (label, dv, rv, pos, neg, thr, dg, n) => {
+      html += `<tr><td class="lbl">${label}</td>`;
+      html += `<td class="trend-val">${num(dv, dg)}</td><td class="trend-ref">${num(rv, dg)}</td>`;
+      html += `<td class="trend-hint">${hint(dv, rv, pos, neg, thr, n)}</td></tr>`;
+    };
+    // 馬場差はレース単位の値なので少数でも読める。バイアス側は頭数で判断する
+    row('馬場差', d.baba, r.baba, '時計かかる', '高速', 0.15, 2);
+    row('内外バイアス（馬番×着順）', d.bias, r.bias, '内枠有利', '外枠有利', 0.06, 3);
+    row('3着内馬の1角位置（相対）', d.in3pos, r.in3pos, '差し有利', '先行有利', 0.04, 2, d.in3posN);
+    row('3着内馬の馬番（相対）', d.in3gate, r.in3gate, '外寄り', '内寄り', 0.04, 2, d.in3gateN);
   }
-  html += `<tr><td class="lbl">内外バイアス（馬番×着順）</td>`;
-  html += `<td class="trend-val">${num(day.bias, 3)}</td><td class="trend-ref">${num(ref.bias, 3)}</td>`;
-  html += `<td class="trend-hint">${hint(day.bias, ref.bias, '内枠有利', '外枠有利', 0.06)}</td></tr>`;
-  html += `<tr><td class="lbl">3着内馬の1角位置（相対）</td>`;
-  html += `<td class="trend-val">${num(day.in3pos, 2)}</td><td class="trend-ref">${num(ref.in3pos, 2)}</td>`;
-  html += `<td class="trend-hint">${hint(day.in3pos, ref.in3pos, '差し有利', '先行有利', 0.04)}</td></tr>`;
-  html += `<tr><td class="lbl">3着内馬の馬番（相対）</td>`;
-  html += `<td class="trend-val">${num(day.in3gate, 2)}</td><td class="trend-ref">${num(ref.in3gate, 2)}</td>`;
-  html += `<td class="trend-hint">${hint(day.in3gate, ref.in3gate, '外寄り', '内寄り', 0.04)}</td></tr>`;
   html += `</table>`;
   html += `<div class="mochi-note" style="margin-top:6px">`;
   html += `内外バイアスは馬番と着順の相関。正なら外ほど負けている＝内枠有利。`;
-  html += `相対値は頭数で割った位置（0=最内/最前、1=大外/最後方）。会場平均は${year}年の同会場${ref.used}レース。`;
+  html += `相対値は頭数で割った位置（0=最内/最前、1=大外/最後方）。`;
+  html += `芝とダートは別コースなので全指標を路面別に集計している。`;
+  html += `標本が足りない路面は判定を伏せる（バイアスは30頭未満で「-」、3着内の集計は9頭未満で「標本不足」）。`;
   html += `</div></div>`;
 
   html += `<div class="trend-card"><h3>レース別</h3><div class="table-wrap"><table class="trend-table">`;
