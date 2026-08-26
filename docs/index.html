@@ -171,6 +171,35 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
 
 .shutuba-detail { margin-top: 8px; }
 
+/* 持ちタイム（出馬表の下に独立ブロック。本表に列を足すと幅が広がって見づらいため） */
+.mochi-block { border-top: 1px solid #eee; padding: 8px 12px 10px; }
+.mochi-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; margin-bottom: 6px; }
+.mochi-cond { font-weight: 400; color: #1a5c2a; }
+.mochi-cond input { width: 64px; padding: 3px 6px; font-size: 12px; border: 1px solid #ccc; border-radius: 4px; }
+.mochi-note { font-weight: 400; color: #888; font-size: 11px; }
+.mochi-block table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.mochi-block th { background: #f8f8f8; padding: 4px 6px; font-weight: 600; border-bottom: 1px solid #ddd; white-space: nowrap; }
+.mochi-block td { padding: 4px 6px; border-bottom: 1px solid #f0f0f0; text-align: center; white-space: nowrap; }
+.mochi-block tr:nth-child(even) { background: #fafafa; }
+.mochi-block .name { text-align: left; }
+.mochi-time { font-weight: 700; font-variant-numeric: tabular-nums; }
+.mochi-none td { color: #aaa; }
+
+/* レース傾向タブ */
+.trend-card { background: #fff; border-radius: 8px; margin-bottom: 8px; padding: 10px 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.trend-card h3 { font-size: 13px; color: #1a5c2a; margin-bottom: 8px; }
+.trend-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.trend-table th { background: #f8f8f8; padding: 4px 6px; font-weight: 600; border-bottom: 1px solid #ddd; white-space: nowrap; }
+.trend-table td { padding: 4px 6px; border-bottom: 1px solid #f0f0f0; text-align: center; white-space: nowrap; }
+.trend-table tr:nth-child(even) { background: #fafafa; }
+.trend-table .lbl { text-align: left; }
+.trend-val { font-weight: 700; font-variant-numeric: tabular-nums; }
+.trend-ref { color: #888; font-variant-numeric: tabular-nums; }
+.trend-hint { font-size: 11px; }
+.trend-in { color: #c62828; }
+.trend-out { color: #1565c0; }
+.trend-flat { color: #999; }
+
 
 /* グレードバッジ */
 .grade-badge {
@@ -200,6 +229,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
   .horse-table { font-size: 11px; }
   .horse-table th, .horse-table td { padding: 3px 4px; }
   .race-menu { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .mochi-block { padding: 6px 8px 8px; }
+  .mochi-block table, .trend-table { font-size: 11px; }
+  .mochi-block th, .mochi-block td, .trend-table th, .trend-table td { padding: 3px 4px; }
   .past-race { min-width: 82px; font-size: 8px; padding: 2px 3px; }
   .past-race .pr-idx { font-size: 10px; }
   .horse-detail-header { padding: 8px 10px; gap: 8px; }
@@ -215,8 +247,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
 </div>
 
 <div class="tab-bar">
-  <button class="tab-btn active" onclick="switchTab('result')">結果</button>
-  <button class="tab-btn" onclick="switchTab('shutuba')">出馬表</button>
+  <button class="tab-btn active" data-tab="result" onclick="switchTab('result')">結果</button>
+  <button class="tab-btn" data-tab="shutuba" onclick="switchTab('shutuba')">出馬表</button>
+  <button class="tab-btn" data-tab="trend" onclick="switchTab('trend')">傾向</button>
 </div>
 
 <!-- メイン画面 -->
@@ -256,6 +289,14 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
   <div class="filters" id="shutuba-filters">
     <div class="filter-row">
       <input type="date" id="shutuba-date-filter">
+    </div>
+  </div>
+
+  <!-- レース傾向フィルタ -->
+  <div class="filters" id="trend-filters">
+    <div class="filter-row">
+      <input type="date" id="trend-date-filter" style="flex:0 0 auto;">
+      <select id="trend-venue-filter"><option value="">競馬場</option></select>
     </div>
   </div>
 
@@ -375,10 +416,15 @@ const shutubaCache = {};
 let selectedShutubaRace = null;
 let selectedShutubaVenue = null;
 // 出馬表詳細のソート・フィルタ（レース切替時にリセット）
-let shutubaSortMode = 'gate';        // 'gate' | 'maxability' | 'avgability'
+let shutubaSortMode = 'gate';        // 'gate' | 'maxability' | 'avgability' | 'mochi'
 let shutubaFilterMaxAbility = '';       // 数値文字列 or ''
 let shutubaFilterAvgAbility = '';     // 数値文字列 or ''
 let shutubaFilterMode = 'AND';        // 'AND' | 'OR'
+// 持ちタイムの対象距離。'' なら選択中レースの距離を使う（レース切替時にリセット）
+let shutubaMochiDist = '';
+
+// レース傾向タブ
+let trendVenue = '';
 
 // 基準タイム用
 
@@ -416,12 +462,13 @@ function jstToday() {
 // === タブ切り替え ===
 function switchTab(tab) {
   currentTab = tab;
-  document.querySelectorAll('.tab-btn').forEach((btn, i) => {
-    btn.classList.toggle('active', (i === 0 && tab === 'result') || (i === 1 && tab === 'shutuba'));
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tab);
   });
 
   document.getElementById('result-filters').classList.toggle('active', tab === 'result');
   document.getElementById('shutuba-filters').classList.toggle('active', tab === 'shutuba');
+  document.getElementById('trend-filters').classList.toggle('active', tab === 'trend');
 
   const list = document.getElementById('race-list');
   const statsEl = document.getElementById('stats');
@@ -441,6 +488,8 @@ function switchTab(tab) {
     } else {
       renderShutuba();
     }
+  } else if (tab === 'trend') {
+    initTrendTab();
   }
 }
 
@@ -871,6 +920,7 @@ function renderShutuba() {
       html += sortOpt('gate', '枠順');
       html += sortOpt('maxability', '過去5走 最高能力↓');
       html += sortOpt('avgability', '過去5走 平均能力↓');
+      html += sortOpt('mochi', '持ちタイム↑');
       html += `</select></label>`;
       html += `<label>最高能力 ≥ <input type="number" step="1" value="${shutubaFilterMaxAbility}" oninput="onShutubaFilterInput('max', this.value)"></label>`;
       html += `<label>平均能力 ≥ <input type="number" step="1" value="${shutubaFilterAvgAbility}" oninput="onShutubaFilterInput('avg', this.value)"></label>`;
@@ -888,6 +938,15 @@ function renderShutuba() {
           const gb = parseInt(b.h[SH.GATE]) || 0;
           if (ga !== gb) return ga - gb;
           return (parseInt(a.h[SH.NUM]) || 0) - (parseInt(b.h[SH.NUM]) || 0);
+        });
+      } else if (shutubaSortMode === 'mochi') {
+        const [mSurf, mDist] = mochiCondition(race);
+        indexed.sort((a, b) => {
+          const ta = bestTime(a.h, mSurf, mDist), tb = bestTime(b.h, mSurf, mDist);
+          if (!ta && !tb) return 0;
+          if (!ta) return 1;           // 該当走なしは末尾
+          if (!tb) return -1;
+          return ta.sec - tb.sec;      // 昇順（速い順）
         });
       } else {
         const key = shutubaSortMode === 'maxability' ? 'maxAbility' : 'avgAbility';
@@ -918,7 +977,10 @@ function renderShutuba() {
         html += `</tr>`;
       }
 
-      html += `</table></div></div></div>`;
+      html += `</table></div>`;
+      // 持ちタイムは本表に列を足さず下部に別ブロックで出す（横幅を広げないため）
+      html += buildMochiBlock(race);
+      html += `</div></div>`;
     }
   }
 
@@ -930,6 +992,7 @@ function resetShutubaSortFilter() {
   shutubaFilterMaxAbility = '';
   shutubaFilterAvgAbility = '';
   shutubaFilterMode = 'AND';
+  shutubaMochiDist = '';
 }
 
 function selectShutubaVenue(venue) {
@@ -1003,6 +1066,110 @@ function updateShutubaHighlight() {
     const st = horseStats(race[SR.HORSES][idx]);
     tr.classList.toggle('filter-match', shutubaFilterMatch(st));
   });
+}
+
+// === 持ちタイム ===
+// 「1:34.2」「58.7」→ 秒。比較専用なので解釈できない値は null
+function timeToSec(t) {
+  const m = String(t == null ? '' : t).trim().match(/^(?:(\d+):)?(\d+(?:\.\d+)?)$/);
+  if (!m) return null;
+  return (parseInt(m[1] || 0, 10) * 60) + parseFloat(m[2]);
+}
+
+// 持ちタイムの対象条件。路面はレース固定、距離は未入力ならレースと同条件
+function mochiCondition(race) {
+  return [race[SR.SURFACE], String(shutubaMochiDist || race[SR.DIST])];
+}
+
+// 過去5走から「路面一致かつ距離が完全一致」の最速走を返す（生タイム基準）。
+// 参考(馬場差なし)の走も時計自体は実測値なので対象に含める
+function bestTime(h, surface, dist) {
+  const past = (h && h[SH.PAST]) || [];
+  let best = null;
+  for (const p of past) {
+    if (p[SP.SURFACE] !== surface) continue;
+    if (String(p[SP.DIST]) !== String(dist)) continue;
+    const sec = timeToSec(p[SP.TIME]);
+    if (sec === null) continue;
+    if (!best || sec < best.sec) best = { sec, p };
+  }
+  return best;
+}
+
+function buildMochiBlock(race) {
+  const [surface, dist] = mochiCondition(race);
+  let html = `<div class="mochi-block">`;
+  html += `<div class="mochi-head">持ちタイム`;
+  html += `<span class="mochi-cond">${esc(surface)} <input type="number" step="100" min="0" value="${esc(dist)}" oninput="onMochiDistInput(this.value)">m</span>`;
+  html += `<span class="mochi-note">過去5走のうち同条件の最速（生タイム）</span>`;
+  html += `</div><div id="mochi-body">${buildMochiBody(race)}</div></div>`;
+  return html;
+}
+
+function buildMochiBody(race) {
+  const [surface, dist] = mochiCondition(race);
+  const rows = (race[SR.HORSES] || []).map(h => ({ h, best: bestTime(h, surface, dist) }));
+  rows.sort((a, b) => {
+    if (!a.best && !b.best) return (parseInt(a.h[SH.NUM]) || 0) - (parseInt(b.h[SH.NUM]) || 0);
+    if (!a.best) return 1;
+    if (!b.best) return -1;
+    return a.best.sec - b.best.sec;
+  });
+
+  const hit = rows.filter(r => r.best).length;
+  if (hit === 0) {
+    return `<div class="no-results" style="padding:16px">${esc(surface)}${esc(dist)}mの持ちタイムを持つ馬はいません</div>`;
+  }
+
+  let html = `<div class="table-wrap"><table>`;
+  html += `<tr><th>順</th><th>枠</th><th>番</th><th>馬名</th><th>持ちタイム</th><th>日付</th><th>場</th><th>距離</th><th>馬場</th><th>馬場差</th><th>斤量</th></tr>`;
+  let order = 0;
+  for (const { h, best } of rows) {
+    const escapedName = h[SH.NAME].replace(/'/g, "\\'");
+    if (!best) {
+      html += `<tr class="mochi-none"><td>-</td><td>${esc(h[SH.GATE])}</td><td>${esc(h[SH.NUM])}</td>`;
+      html += `<td class="name"><span class="horse-link" onclick="showHorseDetail('${esc(escapedName)}')">${esc(h[SH.NAME])}</span></td>`;
+      html += `<td colspan="7">該当走なし</td></tr>`;
+      continue;
+    }
+    const p = best.p;
+    const d = p[SP.DATE] || '';
+    const dateStr = d ? `${d.substring(2,4)}/${d.substring(4,6)}/${d.substring(6,8)}` : '';
+    const raceId = p[SP.RACE_ID] || '';
+    const dateCell = raceId && dateStr
+      ? `<a class="pr-link" href="?race=${esc(raceId)}" target="_blank">${dateStr}</a>`
+      : dateStr;
+    const surfDisp = p[SP.SURFACE] === 'ダート' ? 'ダ' : (p[SP.SURFACE] || '').charAt(0);
+    html += `<tr><td>${++order}</td><td>${esc(h[SH.GATE])}</td><td>${esc(h[SH.NUM])}</td>`;
+    html += `<td class="name"><span class="horse-link" onclick="showHorseDetail('${esc(escapedName)}')">${esc(h[SH.NAME])}</span></td>`;
+    html += `<td class="mochi-time">${esc(p[SP.TIME])}</td>`;
+    html += `<td>${dateCell}</td>`;
+    html += `<td>${esc((p[SP.VENUE] || '').substring(0, 2))}</td>`;
+    html += `<td>${esc(surfDisp)}${esc(p[SP.DIST])}</td>`;
+    html += `<td>${esc(p[SP.COND] || '')}</td>`;
+    html += `<td style="font-size:10px">${esc(p[SP.BABA_SPEED] || '')}</td>`;
+    html += `<td>${esc(p[SP.WEIGHT] || '')}</td>`;
+    html += `</tr>`;
+  }
+  html += `</table></div>`;
+  return html;
+}
+
+// 距離入力のたびに全体を描き直すと入力欄からフォーカスが外れるため、表だけ差し替える
+function onMochiDistInput(val) {
+  shutubaMochiDist = val;
+  const race = shutubaData.find(r => r[SR.ID] === selectedShutubaRace);
+  if (!race) return;
+  if (shutubaSortMode === 'mochi') {
+    // 本表も持ちタイム順なので全体を描き直す。フォーカスは手で戻す
+    // （number 型は setSelectionRange 非対応なので、再代入でキャレットを末尾へ）
+    renderShutuba();
+    const input = document.querySelector('.mochi-cond input');
+    if (input) { input.focus(); const v = input.value; input.value = ''; input.value = v; }
+    return;
+  }
+  const body = document.getElementById('mochi-body');
+  if (body) body.innerHTML = buildMochiBody(race);
 }
 
 function buildPastRaces(pastRaces) {
@@ -1082,6 +1249,178 @@ function buildPastRaces(pastRaces) {
 // 結果タブの馬詳細で使うミニバー（互換用）
 function buildMiniBar(pastRaces) {
   return buildPastRaces(pastRaces);
+}
+
+// === レース傾向タブ ===
+// 「-0.6(やや速)」「+0.3(やや遅) → +0.5(遅)」等から先頭の数値を取り出す。
+// 距離帯で値が変わる日は " → " 区切りで複数入るので、代表として先頭を使う
+function babaNum(s) {
+  const m = String(s == null ? '' : s).match(/[-+]?\d+(?:\.\d+)?/);
+  return m ? parseFloat(m[0]) : null;
+}
+
+const avgOf = a => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
+
+function corrOf(pts) {
+  const n = pts.length;
+  if (n < 30) return null;   // 標本が少ないと相関はノイズだらけになるので出さない
+  const mx = avgOf(pts.map(p => p.x)), my = avgOf(pts.map(p => p.y));
+  let sxy = 0, sxx = 0, syy = 0;
+  for (const p of pts) { sxy += (p.x - mx) * (p.y - my); sxx += (p.x - mx) ** 2; syy += (p.y - my) ** 2; }
+  if (sxx === 0 || syy === 0) return null;
+  return sxy / Math.sqrt(sxx * syy);
+}
+
+// 馬番・着順・通過順位はいずれも頭数で割って相対化する（頭数の違うレースを混ぜるため）
+function trendMetrics(races) {
+  const pts = [], in3pos = [], in3gate = [], baba = {};
+  let used = 0;
+  for (const race of races) {
+    const horses = (race[R.HORSES] || []).filter(h => /^\d+$/.test(String(h[H.RANK])));
+    const N = horses.length;
+    const b = babaNum(race[R.BABA_SPEED]);
+    if (b !== null) (baba[race[R.SURFACE]] = baba[race[R.SURFACE]] || []).push(b);
+    if (N < 5) continue;
+    used++;
+    for (const h of horses) {
+      const num = parseInt(h[H.NUM]), rank = parseInt(h[H.RANK]);
+      if (!num || !rank) continue;
+      pts.push({ x: num / N, y: rank / N });
+      if (rank <= 3) {
+        in3gate.push(num / N);
+        const p1 = parseInt(String(h[H.PASSING] || '').split('-')[0]);
+        if (p1) in3pos.push(p1 / N);
+      }
+    }
+  }
+  const babaAvg = {};
+  for (const [s, arr] of Object.entries(baba)) babaAvg[s] = avgOf(arr);
+  return { races: races.length, used, bias: corrOf(pts), in3pos: avgOf(in3pos), in3gate: avgOf(in3gate), baba: babaAvg };
+}
+
+function initTrendTab() {
+  const dateEl = document.getElementById('trend-date-filter');
+  document.getElementById('stats').textContent = '';
+  if (!dateEl.value) {
+    // 結果タブで日付を選んでいればそれを引き継ぐ
+    const cur = document.getElementById('date-filter').value;
+    if (cur) dateEl.value = cur;
+  }
+  if (dateEl.value) onTrendDateChange();
+  else document.getElementById('race-list').innerHTML = '<div class="loading">日付を選択してください</div>';
+}
+
+async function onTrendDateChange() {
+  const dateVal = document.getElementById('trend-date-filter').value;
+  const list = document.getElementById('race-list');
+  const venueEl = document.getElementById('trend-venue-filter');
+  if (!dateVal) { list.innerHTML = '<div class="loading">日付を選択してください</div>'; return; }
+
+  const date = dateVal.replace(/-/g, '');
+  const year = date.substring(0, 4);
+  if (!metaData.some(m => m.year === year)) {
+    venueEl.innerHTML = '<option value="">競馬場</option>';
+    list.innerHTML = `<div class="no-results">${year}年のデータがありません</div>`;
+    return;
+  }
+
+  list.innerHTML = '<div class="loading">読み込み中...</div>';
+  try {
+    const races = await loadYear(year);
+    const dayRaces = races.filter(r => r[R.DATE] === date);
+    const venues = [...new Set(dayRaces.map(r => r[R.VENUE]))].sort();
+
+    venueEl.innerHTML = '<option value="">競馬場</option>';
+    for (const v of venues) {
+      const o = document.createElement('option');
+      o.value = v; o.textContent = v;
+      venueEl.appendChild(o);
+    }
+    if (!venues.includes(trendVenue)) trendVenue = venues[0] || '';
+    venueEl.value = trendVenue;
+
+    renderTrend();
+  } catch (e) {
+    list.innerHTML = '<div class="loading">読み込みエラー: ' + e.message + '</div>';
+  }
+}
+
+function onTrendVenueChange() {
+  trendVenue = document.getElementById('trend-venue-filter').value;
+  renderTrend();
+}
+
+function renderTrend() {
+  const list = document.getElementById('race-list');
+  const statsEl = document.getElementById('stats');
+  const date = (document.getElementById('trend-date-filter').value || '').replace(/-/g, '');
+  const year = date.substring(0, 4);
+  const all = yearCache[year] || [];
+
+  const dayRaces = all.filter(r => r[R.DATE] === date && r[R.VENUE] === trendVenue);
+  if (dayRaces.length === 0) {
+    statsEl.textContent = '';
+    list.innerHTML = '<div class="no-results">この日のレース結果がありません</div>';
+    return;
+  }
+  dayRaces.sort((a, b) => (a[R.RACENUM] || 0) - (b[R.RACENUM] || 0));
+
+  const day = trendMetrics(dayRaces);
+  const ref = trendMetrics(all.filter(r => r[R.VENUE] === trendVenue));
+  statsEl.textContent = `${trendVenue} ${date.substring(4,6)}/${date.substring(6,8)} ${dayRaces.length}レース`;
+
+  // 当日と会場平均の差を、向き付きの言葉にする
+  const hint = (d, r, pos, neg, thr) => {
+    if (d === null || r === null) return '<span class="trend-flat">-</span>';
+    const diff = d - r;
+    if (Math.abs(diff) < thr) return '<span class="trend-flat">平常</span>';
+    return diff > 0 ? `<span class="trend-in">${pos}</span>` : `<span class="trend-out">${neg}</span>`;
+  };
+  const num = (v, dg) => (v === null || v === undefined ? '-' : v.toFixed(dg));
+
+  let html = `<div class="trend-card"><h3>当日の傾向（${esc(trendVenue)} ${date.substring(4,6)}/${date.substring(6,8)}）</h3>`;
+  html += `<table class="trend-table">`;
+  html += `<tr><th class="lbl">指標</th><th>当日</th><th>会場平均(${year}年)</th><th>判定</th></tr>`;
+
+  for (const surface of Object.keys(day.baba).sort()) {
+    html += `<tr><td class="lbl">馬場差（${esc(surface)}）</td>`;
+    html += `<td class="trend-val">${num(day.baba[surface], 2)}</td>`;
+    html += `<td class="trend-ref">${num(ref.baba[surface], 2)}</td>`;
+    html += `<td class="trend-hint">${hint(day.baba[surface], ref.baba[surface], '時計かかる', '高速', 0.15)}</td></tr>`;
+  }
+  html += `<tr><td class="lbl">内外バイアス（馬番×着順）</td>`;
+  html += `<td class="trend-val">${num(day.bias, 3)}</td><td class="trend-ref">${num(ref.bias, 3)}</td>`;
+  html += `<td class="trend-hint">${hint(day.bias, ref.bias, '内枠有利', '外枠有利', 0.06)}</td></tr>`;
+  html += `<tr><td class="lbl">3着内馬の1角位置（相対）</td>`;
+  html += `<td class="trend-val">${num(day.in3pos, 2)}</td><td class="trend-ref">${num(ref.in3pos, 2)}</td>`;
+  html += `<td class="trend-hint">${hint(day.in3pos, ref.in3pos, '差し有利', '先行有利', 0.04)}</td></tr>`;
+  html += `<tr><td class="lbl">3着内馬の馬番（相対）</td>`;
+  html += `<td class="trend-val">${num(day.in3gate, 2)}</td><td class="trend-ref">${num(ref.in3gate, 2)}</td>`;
+  html += `<td class="trend-hint">${hint(day.in3gate, ref.in3gate, '外寄り', '内寄り', 0.04)}</td></tr>`;
+  html += `</table>`;
+  html += `<div class="mochi-note" style="margin-top:6px">`;
+  html += `内外バイアスは馬番と着順の相関。正なら外ほど負けている＝内枠有利。`;
+  html += `相対値は頭数で割った位置（0=最内/最前、1=大外/最後方）。会場平均は${year}年の同会場${ref.used}レース。`;
+  html += `</div></div>`;
+
+  html += `<div class="trend-card"><h3>レース別</h3><div class="table-wrap"><table class="trend-table">`;
+  html += `<tr><th>R</th><th class="lbl">クラス</th><th>条件</th><th>馬場</th><th>馬場差</th><th>3着内の馬番</th><th>3着内の1角</th></tr>`;
+  for (const race of dayRaces) {
+    const horses = (race[R.HORSES] || []).filter(h => /^\d+$/.test(String(h[H.RANK])));
+    const in3 = horses.filter(h => parseInt(h[H.RANK]) <= 3).sort((a, b) => a[H.RANK] - b[H.RANK]);
+    const surfDisp = race[R.SURFACE] === 'ダート' ? 'ダ' : '芝';
+    const nums = in3.map(h => h[H.NUM]).join(',');
+    const poss = in3.map(h => String(h[H.PASSING] || '').split('-')[0] || '-').join(',');
+    html += `<tr><td><span class="horse-link" onclick="showRaceDetail('${esc(race[R.ID])}')">${race[R.RACENUM]}</span></td>`;
+    html += `<td class="lbl">${esc(classLabel(race[R.CLASS], race[R.GRADE]))}</td>`;
+    html += `<td>${surfDisp}${esc(race[R.DIST])}</td>`;
+    html += `<td>${esc(race[R.COND] || '')}</td>`;
+    html += `<td style="font-size:10px">${esc(race[R.BABA_SPEED] || '')}</td>`;
+    html += `<td>${esc(nums)}</td><td>${esc(poss)}</td></tr>`;
+  }
+  html += `</table></div><div class="mochi-note" style="margin-top:6px">頭数が違うので馬番・通過順位はそのままの値。傾向は上のサマリーで判断してください。</div></div>`;
+
+  list.innerHTML = html;
 }
 
 // === 馬詳細画面 ===
@@ -1238,6 +1577,8 @@ document.getElementById('year-filter').addEventListener('change', onYearChange);
 document.getElementById('generation-filter').addEventListener('change', onGenerationChange);
 document.getElementById('date-filter').addEventListener('change', onDateChange);
 document.getElementById('shutuba-date-filter').addEventListener('change', onShutubaDateChange);
+document.getElementById('trend-date-filter').addEventListener('change', onTrendDateChange);
+document.getElementById('trend-venue-filter').addEventListener('change', onTrendVenueChange);
 
 // meta.jsonから年リストを読み込み → URLパラメータ処理
 fetch('meta.json')
