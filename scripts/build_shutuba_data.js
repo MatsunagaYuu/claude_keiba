@@ -32,6 +32,25 @@ function timeToSec(t) {
   return isNaN(s) ? null : s;
 }
 
+// 出走年と性齢から生年を求める。過去走CSVに馬IDが無く馬名で履歴を引いているため、
+// 名前が再利用された別世代の馬（2011年のラショウモンと2026年のラショウモンなど）が
+// 合流してしまう。生年が一致するかで同一馬かを判定する。
+// 性齢が欠けている場合は null を返し、判定不能として履歴を残す（誤除外を避ける）
+function birthYear(ageStr, dateOrYear) {
+  const age = parseInt(String(ageStr || "").replace(/[^0-9]/g, ""), 10);
+  const year = parseInt(String(dateOrYear || "").substring(0, 4), 10);
+  if (!age || !year) return null;
+  return year - age;
+}
+
+// 出馬表の馬と生年が一致する過去走だけを返す。どちらかの生年が不明なら
+// 判定できないので残す（同名馬は稀なので、誤除外の方が実害が大きい）
+function ownHistory(history, ageStr, raceDate) {
+  const my = birthYear(ageStr, raceDate);
+  if (!my) return history || [];
+  return (history || []).filter((h) => !h.birth || h.birth === my);
+}
+
 function babaLabel(diff) {
   if (diff === null || diff === undefined) return "";
   const abs = Math.abs(diff);
@@ -167,6 +186,7 @@ function main() {
       horseHistory[name].push({
         raceId,
         date,
+        birth: birthYear(r["性齢"], date || year),
         venue: first["競馬場名"],
         dist: first["距離"],
         surface: first["芝/ダート"],
@@ -248,6 +268,7 @@ function main() {
         horseHistory[name].push({
           raceId,
           date,
+          birth: birthYear(r["性齢"], date),
           venue: first["競馬場名"],
           dist: first["距離"],
           surface: first["芝/ダート"],
@@ -322,8 +343,8 @@ function main() {
     const horses = [];
     for (const r of rows) {
       const name = r["馬名"];
-      // 過去5走取得
-      const history = horseHistory[name] || [];
+      // 過去5走取得（同名の別馬を生年で除外してから直近5走を採る）
+      const history = ownHistory(horseHistory[name], r["性齢"], date);
       const past5 = history.slice(0, 5).map((h) => [
         h.date, h.venue, h.dist, h.surface, h.cond, h.rank, h.totalIdx, h.abilityIdx,
         h.babaSpeed, h.time, h.last3f, h.raceId, h.passing, h.ref || "",
@@ -360,7 +381,8 @@ function main() {
 
       const horses = [];
       for (const r of rows) {
-        const history = horseHistory[r["馬名"]] || [];
+        // 同名の別馬を生年で除外してから直近5走を採る
+        const history = ownHistory(horseHistory[r["馬名"]], r["性齢"], date);
         const past5 = history.slice(0, 5).map((h) => [
           h.date, h.venue, h.dist, h.surface, h.cond, h.rank, h.totalIdx, h.abilityIdx,
           h.babaSpeed, h.time, h.last3f, h.raceId, h.passing, h.ref || "",
