@@ -4,12 +4,14 @@ const { parseCSV } = require("./csv_util");
 
 const NAISEI_MODE = process.argv.includes("--naisei");
 const NO_CALIB = process.argv.includes("--no-calib");
+const V3_MODE = process.argv.includes("--v3");
 
 const BASE_TIMES_FILE = path.join(__dirname, "..", "base_times.json");
 const BABA_DIFF_FILE = path.join(__dirname, "..", "baba_diff.json");
 const EXT_BABA_FILE = path.join(__dirname, "..", "external_baba_diff.json");
 const CALENDAR_FILE = path.join(__dirname, "..", "kaisai_calendar.json");
 const CALIB_FILE = path.join(__dirname, "..", "venue_calibration.json");
+const RACE_EFFECT_CALIB_FILE = path.join(__dirname, "..", "race_effect_calibration.json");
 const RACE_RESULT_DIR = path.join(__dirname, "..", "race_result");
 // --naisei は馬場差ソースの切替のみ（出力先は常に race_index、切り戻しはフラグを外すだけ）
 const outdirIdx = process.argv.indexOf("--outdir");
@@ -203,6 +205,19 @@ function main() {
     console.log(`Venue calibration loaded: ${calibPeriods.length} periods (generated ${calib.generated})`);
   }
 
+  // --v3: レース効果補正係数（build_race_calibration.js が生成）。無ければ警告してこの補正のみスキップ
+  let raceEffectCalib = null;
+  if (V3_MODE) {
+    if (fs.existsSync(RACE_EFFECT_CALIB_FILE)) {
+      const rec = JSON.parse(fs.readFileSync(RACE_EFFECT_CALIB_FILE, "utf-8"));
+      raceEffectCalib = rec.jra || null;
+      if (raceEffectCalib) console.log(`--v3: race_effect_calibration.json loaded (jra: ${Object.keys(raceEffectCalib).join(", ")})`);
+      else console.warn(`--v3: race_effect_calibration.json has no "jra" section. Skipping race-effect correction (agari zero-sum still applied).`);
+    } else {
+      console.warn(`--v3: ${RACE_EFFECT_CALIB_FILE} not found. Skipping race-effect correction (agari zero-sum still applied).`);
+    }
+  }
+
   if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR);
 
   const allFiles = fs.readdirSync(RACE_RESULT_DIR).filter((f) => f.endsWith(".csv"));
@@ -386,20 +401,50 @@ function main() {
       }
     }
 
-    const indexedRows = [];
-    for (const row of rows) {
-      if (!/^\d+$/.test(row["着順"])) {
-        indexedRows.push({ ...row, 総合指数: "", 上がり指数: "", 能力指数: "", 参考: "" });
-        continue;
+    // --v3: レース効果補正（paceDev/raceEff）に使う値。verify_index_health.js と同一定義
+    let raceEffV3 = 0;
+    let paceDevV3 = 0;
+    if (V3_MODE) {
+      const scaleV3 = surface === "ダート" ? (DIRT_SCALE_A * parseInt(dist) + DIRT_SCALE_B) : parseInt(dist) / 2000;
+      if (leaderEarly !== Infinity) {
+        paceDevV3 = (leaderEarly - (bt.基準前半秒 + babaDiff * 0.6)) / scaleV3;
       }
+      if (raceDate) {
+        const d = parseInt(dist);
+        const extKey = `${surface}_${raceDate}_${venue}`;
+        const extRecord = extBabaMap[extKey];
+        if (extRecord) {
+          const raceNumStr = String(parseInt(rid.substring(10, 12)));
+          const dayVal = surface === "芝" ? extRecord.芝馬場差 : extRecord.ダート馬場差;
+          let raceBaba = null;
+          if (extRecord.レース別馬場差 && typeof extRecord.レース別馬場差[raceNumStr] === "number") {
+            raceBaba = extRecord.レース別馬場差[raceNumStr];
+          }
+          if (raceBaba !== null && dayVal !== null && dayVal !== undefined) {
+            raceEffV3 = raceBaba / scaleV3 - dayVal;
+          }
+        }
+      }
+    }
+
+    // --v3: 補正pt = gamma*clip(paceDev,±3) + kappa*raceEff（hasBabaのレースのみ、総合・能力とも同額を丸め前に加算）
+    let correctionPt = 0;
+    if (V3_MODE && hasBaba && raceEffectCalib) {
+      const c = raceEffectCalib[surface];
+      if (c) {
+        const clippedPace = Math.max(-3, Math.min(3, paceDevV3));
+        correctionPt = c.gamma * clippedPace + c.kappa * raceEffV3;
+      }
+    }
+
+    // 1パス目: 完走馬の中間値を算出（--v3の上がりゼロサム化に必要なレース内平均を先に求める）
+    const rowCalc = [];
+    for (const row of rows) {
+      if (!/^\d+$/.test(row["着順"])) { rowCalc.push({ valid: false, row }); continue; }
 
       const totalSec = timeToSeconds(row["タイム"]);
       const last3f = parseFloat(row["上がり"]);
-
-      if (!totalSec || !last3f || isNaN(last3f)) {
-        indexedRows.push({ ...row, 総合指数: "", 上がり指数: "", 能力指数: "", 参考: "" });
-        continue;
-      }
+      if (!totalSec || !last3f || isNaN(last3f)) { rowCalc.push({ valid: false, row }); continue; }
 
       const earlySec = totalSec - last3f;
 
@@ -412,7 +457,6 @@ function main() {
       const refBaseSec = bt.基準走破秒;
       const adjustedRef = refBaseSec + babaDiff;
       const timeDiff = adjustedRef - totalSec + weightAdj;
-      const totalIdx = Math.round(anchorIndex + timeDiff * factor - calibOffset);
 
       // 上がり指数
       const anchorEarlyBase = bt.基準前半秒 + babaDiff * 0.6;
@@ -429,8 +473,29 @@ function main() {
       const agariRaw = (absoluteAgari * 0.2 + relativeAgari * 0.8) * courseFactor;
 
       const agariWeight = getAgariWeight(surface, dist, ageClass);
-      const combinedRaw = timeDiff + agariRaw * agariWeight;
-      const abilityIdx = Math.round(anchorIndex + combinedRaw * factor - calibOffset);
+      const gi = agariRaw * agariWeight;
+
+      rowCalc.push({ valid: true, row, factor, timeDiff, gi });
+    }
+
+    // レース内の g_i = agariRaw*agariWeight の平均（--v3のみ使用。完走1頭ならgi-ḡ=0）
+    let gBar = 0;
+    if (V3_MODE) {
+      const validGi = rowCalc.filter(r => r.valid).map(r => r.gi);
+      if (validGi.length) gBar = validGi.reduce((a, b) => a + b, 0) / validGi.length;
+    }
+
+    // 2パス目: 総合・能力指数を確定
+    const indexedRows = [];
+    for (const rc of rowCalc) {
+      if (!rc.valid) {
+        indexedRows.push({ ...rc.row, 総合指数: "", 上がり指数: "", 能力指数: "", 参考: "" });
+        continue;
+      }
+      const { row, factor, timeDiff, gi } = rc;
+      const totalIdx = Math.round(anchorIndex + timeDiff * factor - calibOffset + correctionPt);
+      const combinedRaw = V3_MODE ? (timeDiff + (gi - gBar)) : (timeDiff + gi);
+      const abilityIdx = Math.round(anchorIndex + combinedRaw * factor - calibOffset + correctionPt);
       const last3fIdx = abilityIdx - totalIdx;
 
       indexedRows.push({

@@ -2,8 +2,14 @@ const fs = require("fs");
 const path = require("path");
 const { parseCSV, toCSVLine } = require("./csv_util");
 
+const V3_MODE = process.argv.includes("--v3");
+const RACE_EFFECT_CALIB_FILE = path.join(__dirname, "..", "race_effect_calibration.json");
+
 const RACE_RESULT_DIR = path.join(__dirname, "..", "nar_race_result");
-const OUTPUT_DIR = path.join(__dirname, "..", "nar_race_index");
+const outdirIdx = process.argv.indexOf("--outdir");
+const OUTPUT_DIR = outdirIdx >= 0
+  ? path.join(__dirname, "..", process.argv[outdirIdx + 1])
+  : path.join(__dirname, "..", "nar_race_index");
 const BASE_TIMES_FILE = path.join(__dirname, "..", "nar_base_times.json");
 const BABA_DIFF_FILE = path.join(__dirname, "..", "nar_baba_diff.json");
 
@@ -66,6 +72,19 @@ function main() {
   const babaMap = {};
   for (const b of babaDiff) babaMap[`${b.日付}_${b.競馬場}`] = b;
 
+  // --v3: レース効果補正係数（build_race_calibration.js が生成）。無ければ警告してこの補正のみスキップ
+  let raceEffectCalib = null;
+  if (V3_MODE) {
+    if (fs.existsSync(RACE_EFFECT_CALIB_FILE)) {
+      const rec = JSON.parse(fs.readFileSync(RACE_EFFECT_CALIB_FILE, "utf-8"));
+      raceEffectCalib = rec.nar || null;
+      if (raceEffectCalib) console.log(`--v3: race_effect_calibration.json loaded (nar: ${Object.keys(raceEffectCalib).join(", ")})`);
+      else console.warn(`--v3: race_effect_calibration.json has no "nar" section. Skipping race-effect correction.`);
+    } else {
+      console.warn(`--v3: ${RACE_EFFECT_CALIB_FILE} not found. Skipping race-effect correction.`);
+    }
+  }
+
   // 出力ディレクトリ
   if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR);
 
@@ -96,12 +115,18 @@ function main() {
     // 馬場差（nar_baba_diff.json: ALS内製・JRA互換形式）
     // レース別馬場差（距離補正済み秒）を最優先、無ければ日レベルを距離補正
     let babaDiff = 0, hasBaba = false;
+    // --v3: raceEff = レース別馬場差(距離補正済み秒)/scale − 日次馬場差（verify_index_health.js と同一定義）
+    let raceEffV3 = 0;
     if (baba) {
       const dayVal = surface === "芝" ? baba.芝馬場差 : baba.ダート馬場差;
       const raceVal = baba.レース別馬場差 && baba.レース別馬場差[String(raceNum)];
       if (raceVal !== undefined && raceVal !== null) {
         babaDiff = raceVal;
         hasBaba = true;
+        if (V3_MODE && dayVal !== null && dayVal !== undefined) {
+          const scaleV3 = surface === "ダート" ? (DIRT_SCALE_A * dist + DIRT_SCALE_B) : dist / 2000;
+          raceEffV3 = raceVal / scaleV3 - dayVal;
+        }
       } else if (dayVal !== null && dayVal !== undefined) {
         babaDiff = surface === "ダート"
           ? dayVal * (DIRT_SCALE_A * dist + DIRT_SCALE_B)
@@ -112,6 +137,13 @@ function main() {
       }
     } else {
       noBaba++;
+    }
+
+    // --v3: 補正pt = kappa*raceEff（hasBabaのレースのみ、丸め前に加算）
+    let correctionPt = 0;
+    if (V3_MODE && hasBaba && raceEffectCalib) {
+      const c = raceEffectCalib[surface];
+      if (c) correctionPt = c.kappa * raceEffV3;
     }
 
     // 各馬の指数を計算
@@ -134,7 +166,7 @@ function main() {
       // adjustedRef = 基準 + 馬場差、timeDiff = adjustedRef - 走破 + 斤量補正
       const weight = parseFloat(row["斤量"]) || BASE_WEIGHT;
       const weightAdj = (weight - BASE_WEIGHT) * WEIGHT_FACTOR * (dist / 2000);
-      const totalIndex = anchorIndex + (bt.基準走破秒 + babaDiff - totalSec + weightAdj) * factor;
+      const totalIndex = anchorIndex + (bt.基準走破秒 + babaDiff - totalSec + weightAdj) * factor + correctionPt;
 
       outputRows.push({
         ...row,

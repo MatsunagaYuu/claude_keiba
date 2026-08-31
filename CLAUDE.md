@@ -6,7 +6,10 @@ JRAの競馬レースデータをスクレイピングし、独自の総合指�
 
 ```
 ├── scripts/              # 現行スクリプト（node scripts/xxx.js で実行）
-│   ├── calc_index.js         # 指数算出（メイン）
+│   ├── calc_index.js         # 指数算出（メイン、--v3でレース効果κ/ペースγ補正+上がりゼロサム化）
+│   ├── build_race_calibration.js # レース効果補正係数の推定 → race_effect_calibration.json
+│   ├── verify_index_health.js # 指数健全性検証（馬内中心化残差~paceDev/raceEff回帰など）
+│   ├── verify_rank_prediction.js # 着順予測ペア一致率の検証
 │   ├── build_base_times.js   # 基準タイム生成 → base_times.json
 │   ├── build_baba_diff_v2.js # 内製馬場差生成 → baba_diff.json（馬効果×日効果×レース効果のALS同時分解）
 │   ├── build_baba_diff.js    # 旧内製馬場差（v1、未使用。v2に置換済み）
@@ -45,6 +48,7 @@ JRAの競馬レースデータをスクレイピングし、独自の総合指�
 ├── base_times.json       # 基準タイム（16クラス×会場×距離）
 ├── venue_calibration.json # 会場×路面×距離帯×期間の指数補正offset
 ├── baba_diff.json        # 内製馬場差（2014-、日×会場×路面＋レース別。本採用中）
+├── race_effect_calibration.json # --v3のレース効果κ・ペースγ補正係数（JRA/NAR、路面別）
 ├── external_baba_diff.json # 外部馬場差データ（ittai.net、切り戻し用に温存）
 ├── kaisai_calendar.json  # 開催カレンダー
 ├── batch_result.sh       # レース結果バッチ（結果取得→指数→デプロイ）
@@ -156,6 +160,7 @@ node scripts/build_shutuba_data.js --date 20260714 20260715  # JRA/NARとも同�
 - **基準タイム**: base_times.json（年齢クラス×会場×距離、build_base_times.jsで生成）
 - **BTフォールバック**: サンプル不足時に3歳以上/4歳以上の同グレードにフォールバック。アンカー指数もフォールバック先に合わせる
 - **会場キャリブレーション**: venue_calibration.json の offset（会場×路面×距離帯×期間）を総合/能力指数から減算。同一馬±120日ペアのネットワーク最小二乗で推定（build_venue_calibration.js）。ファイル無し or `--no-calib` で無効（完全可逆）。再推定時は `--no-calib --outdir` で素の指数を作ってから行う
+- **--v3（2026-09-01本採用）**: レース効果デシュリンク（κ）・ペース補正（γ）・上がりのレース内ゼロサム化。係数は race_effect_calibration.json（build_race_calibration.js が race_index/nar_race_index の中心化残差~paceDev/raceEff回帰から推定）。再推定は現行出力の残差傾きから増分推定して係数に加算（年1回目安、verify_index_health.js で傾きを確認）。切り戻しは calc_index.js/calc_nar_index.js から `--v3` を外すだけ（係数ファイルは温存）
 
 ## データフロー
 

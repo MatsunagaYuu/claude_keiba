@@ -1,0 +1,33 @@
+{
+  "generated": "2026-08-31T22:04:01.409Z",
+  "since": 2019,
+  "method": "centered-residual-slope-zeroing",
+  "jra": {
+    "芝": {
+      "gamma": 0.502,
+      "kappa": 8.022,
+      "n": 165668,
+      "b_pace": -0.502,
+      "b_raceEff": -8.022
+    },
+    "ダート": {
+      "gamma": 0.262,
+      "kappa": 5.321,
+      "n": 174527,
+      "b_pace": -0.262,
+      "b_raceEff": -5.321
+    }
+  },
+  "nar": {
+    "ダート": {
+      "kappa": 11.068,
+      "n": 207985,
+      "b_raceEff": -11.068
+    },
+    "芝": {
+      "kappa": 8.813,
+      "n": 978,
+      "b_raceEff": -8.813
+    }
+  }
+}

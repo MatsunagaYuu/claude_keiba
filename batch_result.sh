@@ -52,7 +52,7 @@ node scripts/build_baba_diff_v2.js --append $DATES
 
 echo ""
 echo "=== 指数算出 (対象日: $DATES) ==="
-node scripts/calc_index.js --naisei --date $DATES
+node scripts/calc_index.js --naisei --v3 --date $DATES
 
 echo ""
 # batch_daily.sh から呼ばれる時（SKIP_DEPLOY=1）は、最後の deploy.sh が

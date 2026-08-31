@@ -49,7 +49,7 @@ if [ -n "$RESULT_DATES" ]; then
 
   echo ""
   echo "=== 指数算出（全件再計算） ==="
-  node scripts/calc_nar_index.js
+  node scripts/calc_nar_index.js --v3
 else
   echo ""
   echo "=== 結果データなし（未来日のみ）。馬場差・指数の更新をスキップ ==="
