@@ -6,8 +6,9 @@ JRAの競馬レースデータをスクレイピングし、独自の総合指�
 
 ```
 ├── scripts/              # 現行スクリプト（node scripts/xxx.js で実行）
-│   ├── calc_index.js         # 指数算出（メイン、--v3でレース効果κ/ペースγ補正+上がりゼロサム化）
+│   ├── calc_index.js         # 指数算出（メイン、--v3でレース効果κ/ペースγ補正+上がりゼロサム化+上がり層鮮度更新）
 │   ├── build_race_calibration.js # レース効果補正係数の推定 → race_effect_calibration.json
+│   ├── build_agari_baselines.js # 上がり層(前半秒/上がり秒/回帰スロープ/上がり標準偏差)の6年窓鮮度更新 → agari_baselines.json
 │   ├── verify_index_health.js # 指数健全性検証（馬内中心化残差~paceDev/raceEff回帰など）
 │   ├── verify_rank_prediction.js # 着順予測ペア一致率の検証
 │   ├── build_base_times.js   # 基準タイム生成 → base_times.json
@@ -49,6 +50,7 @@ JRAの競馬レースデータをスクレイピングし、独自の総合指�
 ├── venue_calibration.json # 会場×路面×距離帯×期間の指数補正offset
 ├── baba_diff.json        # 内製馬場差（2014-、日×会場×路面＋レース別。本採用中）
 ├── race_effect_calibration.json # --v3のレース効果κ・ペースγ補正係数（JRA/NAR、路面別）
+├── agari_baselines.json  # 上がり層6年窓基準（Stage2改）。水準（基準走破秒・基準指数）は含まない。base_times.jsonと役割分担
 ├── external_baba_diff.json # 外部馬場差データ（ittai.net、切り戻し用に温存）
 ├── kaisai_calendar.json  # 開催カレンダー
 ├── batch_result.sh       # レース結果バッチ（結果取得→指数→デプロイ）
@@ -161,6 +163,13 @@ node scripts/build_shutuba_data.js --date 20260714 20260715  # JRA/NARとも同�
 - **BTフォールバック**: サンプル不足時に3歳以上/4歳以上の同グレードにフォールバック。アンカー指数もフォールバック先に合わせる
 - **会場キャリブレーション**: venue_calibration.json の offset（会場×路面×距離帯×期間）を総合/能力指数から減算。同一馬±120日ペアのネットワーク最小二乗で推定（build_venue_calibration.js）。ファイル無し or `--no-calib` で無効（完全可逆）。再推定時は `--no-calib --outdir` で素の指数を作ってから行う
 - **--v3（2026-09-01本採用）**: レース効果デシュリンク（κ）・ペース補正（γ）・上がりのレース内ゼロサム化。係数は race_effect_calibration.json（build_race_calibration.js が race_index/nar_race_index の中心化残差~paceDev/raceEff回帰から推定）。再推定は現行出力の残差傾きから増分推定して係数に加算（年1回目安、verify_index_health.js で傾きを確認）。切り戻しは calc_index.js/calc_nar_index.js から `--v3` を外すだけ（係数ファイルは温存）
+- **上がり層の鮮度更新（Stage2改、2026-09-02本採用）**: base_times.json（水準・全期間固定）とは別に、上がり層（基準前半秒・基準上がり秒・
+  回帰スロープ・上がり標準偏差）だけを6年窓で鮮度更新した agari_baselines.json を calc_index.js --v3 が優先参照する。
+  セルが薄い/無い場合は base_times.json にフォールバックし連続性を優先。総合指数の水準（基準走破秒・anchorIndex）には
+  一切影響しない。年1回更新: node scripts/build_agari_baselines.js を再生成 → 以後のバッチ計算に反映。
+  過去指数は凍結のまま（該当日を --append で追記しない限り遡って変わらない）。ファイル無しなら完全に現行動作
+  （切り戻しはファイル削除のみ）
+  ※年1回更新を忘れない仕組みは検討中（ユーザー決定待ち）
 
 ## データフロー
 

@@ -12,6 +12,7 @@ const EXT_BABA_FILE = path.join(__dirname, "..", "external_baba_diff.json");
 const CALENDAR_FILE = path.join(__dirname, "..", "kaisai_calendar.json");
 const CALIB_FILE = path.join(__dirname, "..", "venue_calibration.json");
 const RACE_EFFECT_CALIB_FILE = path.join(__dirname, "..", "race_effect_calibration.json");
+const AGARI_BASELINES_FILE = path.join(__dirname, "..", "agari_baselines.json");
 const RACE_RESULT_DIR = path.join(__dirname, "..", "race_result");
 // --naisei は馬場差ソースの切替のみ（出力先は常に race_index、切り戻しはフラグを外すだけ）
 const outdirIdx = process.argv.indexOf("--outdir");
@@ -131,6 +132,29 @@ function timeToSeconds(timeStr) {
   return parseInt(m[1]) * 60 + parseFloat(m[2]);
 }
 
+// Stage2改: 上がり層（基準前半秒・基準上がり秒・回帰スロープ・上がり標準偏差）だけを
+// agari_baselines.json（6年窓・鮮度更新版）から取得。getBaseTimes と同一のフォールバック規則。
+// 水準（基準走破秒・アンカー）には一切関与しない。
+function getAgariBaseTimes(agariMap, surface, venue, dist, ageClass) {
+  const key = `${surface}_${venue}_${dist}_${ageClass}`;
+  const a = agariMap[key];
+  if (a && a.サンプル数 >= MIN_BT_SAMPLES) return { agariBt: a, matchedClass: ageClass };
+  const grade = ageClass.replace(/^(2歳|3歳|3歳以上|4歳以上)/, "");
+  const fallbacks = ["3歳以上", "4歳以上"];
+  for (const fb of fallbacks) {
+    const fbClass = `${fb}${grade}`;
+    const fbA = agariMap[`${surface}_${venue}_${dist}_${fbClass}`];
+    if (fbA && fbA.サンプル数 >= MIN_BT_SAMPLES) return { agariBt: fbA, matchedClass: fbClass };
+  }
+  // サンプル不足でもagari側にデータがあれば使う（getBaseTimesと同じ緩和段階）
+  if (a) return { agariBt: a, matchedClass: ageClass };
+  for (const fb of fallbacks) {
+    const fbClass = `${fb}${grade}`;
+    const fbA = agariMap[`${surface}_${venue}_${dist}_${fbClass}`];
+    if (fbA) return { agariBt: fbA, matchedClass: fbClass };
+  }
+  return null; // agari_baselinesに該当セルなし → base_times.jsonへフォールバック（呼び出し側の責務）
+}
 
 function main() {
   const baseTimes = JSON.parse(fs.readFileSync(BASE_TIMES_FILE, "utf-8"));
@@ -216,6 +240,25 @@ function main() {
     } else {
       console.warn(`--v3: ${RACE_EFFECT_CALIB_FILE} not found. Skipping race-effect correction (agari zero-sum still applied).`);
     }
+  }
+
+  // --v3: 上がり層の鮮度更新（Stage2改）。agari_baselines.json が無ければ完全に現行動作（水準・基準タイムは常にbase_times.json）
+  let agariMap = null;
+  let globalAvgAgariStddev = 1;
+  if (V3_MODE && fs.existsSync(AGARI_BASELINES_FILE)) {
+    const agariBaselines = JSON.parse(fs.readFileSync(AGARI_BASELINES_FILE, "utf-8"));
+    agariMap = {};
+    for (const a of agariBaselines) {
+      const surface = a["芝/ダート"] || "芝";
+      agariMap[`${surface}_${a.競馬場}_${a.距離}_${a.クラス}`] = a;
+    }
+    const agariStddevs = agariBaselines.map(a => a.上がり標準偏差).filter(v => v > 0);
+    globalAvgAgariStddev = agariStddevs.length > 0
+      ? agariStddevs.reduce((a, b) => a + b, 0) / agariStddevs.length
+      : globalAvgStddev;
+    console.log(`--v3: agari_baselines.json loaded (${agariBaselines.length} cells). 上がり層のみ差し替え、水準はbase_times.jsonのまま`);
+  } else if (V3_MODE) {
+    console.log(`--v3: agari_baselines.json not found. 上がり層も現行どおりbase_times.jsonを使用`);
   }
 
   if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR);
@@ -377,9 +420,26 @@ function main() {
       noBaba++;
     }
 
-    const slope = bt.回帰スロープ || 0;
-    const courseStddev = bt.上がり標準偏差 || globalAvgStddev;
-    const courseFactor = globalAvgStddev / courseStddev;
+    // --v3: 上がり層（前半秒・上がり秒・回帰スロープ・上がり標準偏差）はagari_baselinesがあれば優先。
+    // 無い/薄いセルはbase_times.jsonへフォールバック（基準走破秒・anchorIndexは常にbase_times.json、ここでは触らない）
+    let agariEarly = bt.基準前半秒;
+    let agariLast3f = bt.基準上がり秒;
+    let agariSlope = bt.回帰スロープ || 0;
+    let agariStddev = bt.上がり標準偏差 || globalAvgStddev;
+    let agariGlobalAvgStddev = globalAvgStddev;
+    if (agariMap) {
+      const agariResult = getAgariBaseTimes(agariMap, surface, venue, dist, ageClass);
+      if (agariResult) {
+        agariEarly = agariResult.agariBt.基準前半秒;
+        agariLast3f = agariResult.agariBt.基準上がり秒;
+        agariSlope = agariResult.agariBt.回帰スロープ || 0;
+        agariStddev = agariResult.agariBt.上がり標準偏差 || globalAvgAgariStddev;
+        agariGlobalAvgStddev = globalAvgAgariStddev;
+      }
+    }
+    const slope = agariSlope;
+    const courseStddev = agariStddev;
+    const courseFactor = agariGlobalAvgStddev / courseStddev;
 
     let calibOffset = 0;
     if (calibPeriods) {
@@ -407,7 +467,7 @@ function main() {
     if (V3_MODE) {
       const scaleV3 = surface === "ダート" ? (DIRT_SCALE_A * parseInt(dist) + DIRT_SCALE_B) : parseInt(dist) / 2000;
       if (leaderEarly !== Infinity) {
-        paceDevV3 = (leaderEarly - (bt.基準前半秒 + babaDiff * 0.6)) / scaleV3;
+        paceDevV3 = (leaderEarly - (agariEarly + babaDiff * 0.6)) / scaleV3;
       }
       if (raceDate) {
         const d = parseInt(dist);
@@ -459,8 +519,8 @@ function main() {
       const timeDiff = adjustedRef - totalSec + weightAdj;
 
       // 上がり指数
-      const anchorEarlyBase = bt.基準前半秒 + babaDiff * 0.6;
-      const anchorLast3fBase = bt.基準上がり秒 + babaDiff * 0.4;
+      const anchorEarlyBase = agariEarly + babaDiff * 0.6;
+      const anchorLast3fBase = agariLast3f + babaDiff * 0.4;
       const earlyDiff = earlySec - anchorEarlyBase;
       const expectedLast3f = anchorLast3fBase + slope * earlyDiff;
 
