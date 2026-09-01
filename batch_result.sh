@@ -51,6 +51,27 @@ echo "=== 内製馬場差 追記 (対象日: $DATES) ==="
 node scripts/build_baba_diff_v2.js --append $DATES
 
 echo ""
+echo "=== 上がり層基準の鮮度チェック ==="
+# agari_baselines.json（Stage2改・6年窓の上がり層基準）が無い、または最終更新から365日超なら自己修復として再生成する。
+# 日付演算はmacOS(BSD date/stat)前提。GNU date拡張（date -d 等）は使わないこと
+AGARI_FILE="agari_baselines.json"
+if [ ! -f "$AGARI_FILE" ]; then
+  echo "agari_baselines 再生成（前回: なし）"
+  node scripts/build_agari_baselines.js
+else
+  AGARI_MTIME=$(stat -f %m "$AGARI_FILE")
+  NOW=$(date +%s)
+  AGE_DAYS=$(( (NOW - AGARI_MTIME) / 86400 ))
+  if [ "$AGE_DAYS" -gt 365 ]; then
+    AGARI_LAST=$(stat -f "%Sm" -t "%Y-%m-%d" "$AGARI_FILE")
+    echo "agari_baselines 再生成（前回: $AGARI_LAST、${AGE_DAYS}日経過）"
+    node scripts/build_agari_baselines.js
+  else
+    echo "agari_baselines.json は鮮度OK（${AGE_DAYS}日前更新、スキップ）"
+  fi
+fi
+
+echo ""
 echo "=== 指数算出 (対象日: $DATES) ==="
 node scripts/calc_index.js --naisei --v3 --date $DATES
 
