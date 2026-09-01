@@ -201,6 +201,23 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
 .trend-out { color: #1565c0; }
 .trend-flat { color: #999; }
 
+/* 期間モードの折れ線グラフ（外部ライブラリ不可のため自前SVG） */
+.trend-chart { margin-bottom: 14px; }
+.trend-chart-title { font-size: 12px; font-weight: 700; margin-bottom: 2px; }
+.trend-chart-note { font-size: 11px; color: #888; margin-bottom: 4px; }
+.trend-svg { width: 100%; height: auto; display: block; overflow: visible; }
+.trend-svg .cg { stroke: #eee; stroke-width: 1; }
+.trend-svg .c0 { stroke: #bbb; stroke-width: 1; stroke-dasharray: 4 3; }
+.trend-svg .cref { stroke-width: 1; stroke-dasharray: 5 4; opacity: 0.55; }
+.trend-svg .cyl { font-size: 10px; fill: #999; text-anchor: end; }
+.trend-svg .cxl { font-size: 10px; fill: #999; text-anchor: middle; }
+.trend-legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 11px; color: #555; margin-bottom: 8px; }
+.trend-legend span::before {
+  content: ''; display: inline-block; width: 14px; height: 3px;
+  vertical-align: middle; margin-right: 4px; background: currentColor;
+}
+.trend-legend .lg-dash::before { height: 0; border-top: 2px dashed currentColor; }
+
 
 /* グレードバッジ */
 .grade-badge {
@@ -296,7 +313,14 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
   <!-- レース傾向フィルタ -->
   <div class="filters" id="trend-filters">
     <div class="filter-row">
+      <select id="trend-mode" style="flex:0 0 auto;">
+        <option value="day">単日</option>
+        <option value="range">期間</option>
+      </select>
       <input type="date" id="trend-date-filter" style="flex:0 0 auto;">
+      <span id="trend-to-wrap" style="display:none;align-items:center;gap:6px;flex:0 0 auto;">
+        〜 <input type="date" id="trend-date-to" style="flex:0 0 auto;">
+      </span>
       <select id="trend-venue-filter"><option value="">競馬場</option></select>
     </div>
   </div>
@@ -426,6 +450,7 @@ let shutubaMochiDist = '';
 
 // レース傾向タブ
 let trendVenue = '';
+let trendMode = 'day';   // 'day' | 'range'
 
 // 基準タイム用
 
@@ -730,7 +755,12 @@ function render(horseName, idxMin) {
     const dateDisp = d ? `${d.substring(0,4)}/${d.substring(4,6)}/${d.substring(6,8)}` : `${race[R.YEAR]}年`;
     const rNum = race[R.RACENUM] ? `${race[R.RACENUM]}R` : '';
     const bSpeed = race[R.BABA_SPEED] || '';
-    html += `<div class="race-meta">${dateDisp} ${rNum} ${race[R.SURFACE]} ${race[R.COND]}${bSpeed ? '/' + bSpeed : ''} ${race[R.WEATHER]}</div></div>`;
+    // 日付＝このレースの結果、馬場差＝その日の傾向（出馬表の過去5走カードと同じ対応）
+    const dateLink = d
+      ? `<span class="horse-link" title="このレースの結果" onclick="event.stopPropagation();showRaceDetail('${esc(id)}')">${dateDisp}</span>`
+      : dateDisp;
+    const babaLink = trendLinkHtml(d, race[R.VENUE], bSpeed, false);
+    html += `<div class="race-meta">${dateLink} ${rNum} ${race[R.SURFACE]} ${race[R.COND]}${bSpeed ? '/' + babaLink : ''} ${race[R.WEATHER]}</div></div>`;
     html += `<span class="race-arrow">&#9654;</span></div>`;
 
     html += `<div class="race-body"><div class="table-wrap"><table class="horse-table">`;
@@ -1233,7 +1263,9 @@ function buildPastRaces(pastRaces) {
       html += `<div class="pr-info">${esc(pCls)}${pName ? ` <span class="pr-rname">${esc(pName)}</span>` : ""}</div>`;
     }
     const pCond = p[SP.COND] || '';
-    html += `<div class="pr-info">${surfDisp}${p[SP.DIST]}${pCond ? ' ' + pCond : ''}${baba ? ' ' + baba : ''}</div>`;
+    // 日付＝レース結果（上の行）、馬場差＝その日の傾向。隣の日付リンクに合わせて別タブで開く
+    const babaLink = trendLinkHtml(p[SP.DATE], p[SP.VENUE], baba, true);
+    html += `<div class="pr-info">${surfDisp}${p[SP.DIST]}${pCond ? ' ' + pCond : ''}${baba ? ' ' + babaLink : ''}</div>`;
     html += `<div class="pr-time">${time}${last3f ? '(' + last3f + ')' : ''}</div>`;
     if (jockey || weight || gate || pop) {
       const jocParts = [jockey, weight ? weight : '', gate ? gate + '番' : '', pop ? pop + '人' : ''].filter(Boolean);
@@ -1318,30 +1350,71 @@ function initTrendTab() {
     const cur = document.getElementById('date-filter').value;
     if (cur) dateEl.value = cur;
   }
-  if (dateEl.value) onTrendDateChange();
+  if (dateEl.value) refreshTrend();
   else document.getElementById('race-list').innerHTML = '<div class="loading">日付を選択してください</div>';
 }
 
-async function onTrendDateChange() {
-  const dateVal = document.getElementById('trend-date-filter').value;
-  const list = document.getElementById('race-list');
-  const venueEl = document.getElementById('trend-venue-filter');
-  if (!dateVal) { list.innerHTML = '<div class="loading">日付を選択してください</div>'; return; }
+// 単日モードは from=to として扱い、読み込み・会場抽出を期間モードと共通化する
+function trendPeriod() {
+  const from = (document.getElementById('trend-date-filter').value || '').replace(/-/g, '');
+  const to = trendMode === 'range'
+    ? (document.getElementById('trend-date-to').value || '').replace(/-/g, '')
+    : from;
+  if (!from || !to) return null;
+  return from <= to ? { lo: from, hi: to } : { lo: to, hi: from };
+}
 
-  const date = dateVal.replace(/-/g, '');
-  const year = date.substring(0, 4);
-  if (!metaData.some(m => m.year === year)) {
+function onTrendModeChange() {
+  trendMode = document.getElementById('trend-mode').value;
+  document.getElementById('trend-to-wrap').style.display = trendMode === 'range' ? 'inline-flex' : 'none';
+  if (trendMode === 'range') {
+    const fromEl = document.getElementById('trend-date-filter');
+    const toEl = document.getElementById('trend-date-to');
+    // 初回は「見ていた日を終端」にして90日遡る
+    if (!toEl.value && fromEl.value) {
+      toEl.value = fromEl.value;
+      const d = new Date(fromEl.value + 'T00:00:00Z');
+      d.setUTCDate(d.getUTCDate() - 90);
+      fromEl.value = d.toISOString().substring(0, 10);
+    }
+  }
+  refreshTrend();
+}
+
+function onTrendVenueChange() {
+  trendVenue = document.getElementById('trend-venue-filter').value;
+  refreshTrend();
+}
+
+// 期間内の年データを読み込み、会場リストを組み直してから描画する
+async function refreshTrend() {
+  const list = document.getElementById('race-list');
+  const statsEl = document.getElementById('stats');
+  const venueEl = document.getElementById('trend-venue-filter');
+  const period = trendPeriod();
+  if (!period) { statsEl.textContent = ''; list.innerHTML = '<div class="loading">日付を選択してください</div>'; return; }
+
+  const years = [];
+  for (let y = parseInt(period.lo.substring(0, 4)); y <= parseInt(period.hi.substring(0, 4)); y++) {
+    if (metaData.some(m => m.year === String(y))) years.push(String(y));
+  }
+  if (years.length === 0) {
     venueEl.innerHTML = '<option value="">競馬場</option>';
-    list.innerHTML = `<div class="no-results">${year}年のデータがありません</div>`;
+    statsEl.textContent = '';
+    list.innerHTML = '<div class="no-results">この期間のデータがありません</div>';
     return;
   }
 
   list.innerHTML = '<div class="loading">読み込み中...</div>';
   try {
-    const races = await loadYear(year);
-    const dayRaces = races.filter(r => r[R.DATE] === date);
-    const venues = [...new Set(dayRaces.map(r => r[R.VENUE]))].sort();
-
+    await Promise.all(years.map(loadYear));
+    const inRange = [];
+    for (const y of years) {
+      for (const r of (yearCache[y] || [])) {
+        if (r[R.DATE] >= period.lo && r[R.DATE] <= period.hi) inRange.push(r);
+      }
+    }
+    const venues = [...new Set(inRange.map(r => r[R.VENUE]))].sort();
     venueEl.innerHTML = '<option value="">競馬場</option>';
     for (const v of venues) {
       const o = document.createElement('option');
@@ -1351,15 +1424,173 @@ async function onTrendDateChange() {
     if (!venues.includes(trendVenue)) trendVenue = venues[0] || '';
     venueEl.value = trendVenue;
 
-    renderTrend();
+    if (trendMode === 'range') renderTrendRange(period, years);
+    else renderTrend();
   } catch (e) {
     list.innerHTML = '<div class="loading">読み込みエラー: ' + e.message + '</div>';
   }
 }
 
-function onTrendVenueChange() {
-  trendVenue = document.getElementById('trend-venue-filter').value;
-  renderTrend();
+// "20260818_門別" → ["20260818", "門別"]。会場名に _ は無いが念のため最初の1つで分割する
+function splitTrendParam(s) {
+  const m = String(s || '').match(/^(\d{8})_(.+)$/);
+  return m ? [m[1], m[2]] : [null, null];
+}
+
+// 他タブのリンクから傾向タブを開く
+function showTrend(date, venue) {
+  document.getElementById('horse-detail').classList.remove('active');
+  document.getElementById('main-view').style.display = '';
+  trendMode = 'day';
+  document.getElementById('trend-mode').value = 'day';
+  document.getElementById('trend-to-wrap').style.display = 'none';
+  document.getElementById('trend-date-filter').value = toDateInput(date);
+  trendVenue = venue || '';
+  history.pushState({ trend: `${date}_${venue}` }, '', `?trend=${date}_${encodeURIComponent(venue)}`);
+  switchTab('trend');
+  window.scrollTo(0, 0);
+}
+
+// 日付＋会場から傾向へのリンクを作る。結果タブ・馬別結果リストは同一ページ遷移、
+// 出馬表の過去5走カードは隣の日付リンクに合わせて別タブで開く
+function trendLinkHtml(date, venue, label, newTab) {
+  if (!date || !venue || !label) return esc(label || '');
+  if (newTab) {
+    return `<a class="pr-link" href="?trend=${esc(date)}_${encodeURIComponent(venue)}" target="_blank"`
+      + ` title="この日の傾向" onclick="event.stopPropagation()">${esc(label)}</a>`;
+  }
+  return `<span class="horse-link" title="この日の傾向"`
+    + ` onclick="event.stopPropagation();showTrend('${esc(date)}','${esc(venue)}')">${esc(label)}</span>`;
+}
+
+const TREND_COLORS = { '芝': '#2e7d32', 'ダート': '#a1662f' };
+
+// 外部ライブラリを持ち込めないので折れ線グラフは自前のSVGで描く。
+// dates は期間内の全開催日（X座標の基準）、series は 路面→[{date, 指標...}]、
+// ref は路面ごとの会場平均（水平の破線として引く）
+function trendChart(label, note, dates, series, ref, key, dg, opts) {
+  opts = opts || {};
+  const W = 760, H = 190, L = 46, PR = 12, T = 14, B = 28;
+  const vals = [];
+  for (const s of Object.keys(series)) {
+    for (const p of series[s]) if (isFinite(p[key]) && p[key] !== null) vals.push(p[key]);
+  }
+  for (const s of Object.keys(ref)) {
+    const v = ref[s] && ref[s][key];
+    if (isFinite(v) && v !== null && v !== undefined) vals.push(v);
+  }
+  // 描ける点が1つも無い路面は凡例に居るのにグラフから消えるので、その旨を注記に足す
+  const empty = Object.keys(series).filter(s =>
+    !series[s].some(p => isFinite(p[key]) && p[key] !== null));
+  const fullNote = note + (empty.length ? `（${empty.join('・')}は標本不足で非表示）` : '');
+
+  let html = `<div class="trend-chart"><div class="trend-chart-title">${esc(label)}</div>`;
+  if (fullNote) html += `<div class="trend-chart-note">${esc(fullNote)}</div>`;
+  if (vals.length === 0) return html + `<div class="mochi-note">標本不足で描画できません</div></div>`;
+
+  let min = Math.min(...vals), max = Math.max(...vals);
+  if (opts.zero) { min = Math.min(min, 0); max = Math.max(max, 0); }
+  const pad = (max - min) * 0.12 || 0.1;
+  min -= pad; max += pad;
+  const x = i => L + (dates.length <= 1 ? (W - L - PR) / 2 : i * (W - L - PR) / (dates.length - 1));
+  const y = v => T + (max - v) / (max - min) * (H - T - B);
+  const idx = {};
+  dates.forEach((d, i) => { idx[d] = i; });
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" class="trend-svg">`;
+  for (let i = 0; i <= 2; i++) {
+    const v = min + (max - min) * i / 2, yy = y(v).toFixed(1);
+    svg += `<line class="cg" x1="${L}" y1="${yy}" x2="${W - PR}" y2="${yy}"/>`;
+    svg += `<text class="cyl" x="${L - 5}" y="${(y(v) + 3).toFixed(1)}">${v.toFixed(dg)}</text>`;
+  }
+  if (min < 0 && max > 0) {
+    svg += `<line class="c0" x1="${L}" y1="${y(0).toFixed(1)}" x2="${W - PR}" y2="${y(0).toFixed(1)}"/>`;
+  }
+  for (const s of Object.keys(ref)) {
+    const v = ref[s] && ref[s][key];
+    if (!isFinite(v) || v === null || v === undefined) continue;
+    svg += `<line class="cref" stroke="${TREND_COLORS[s] || '#888'}" x1="${L}" y1="${y(v).toFixed(1)}" x2="${W - PR}" y2="${y(v).toFixed(1)}"/>`;
+  }
+  for (const s of Object.keys(series)) {
+    const col = TREND_COLORS[s] || '#666';
+    let d = '', pen = false;
+    for (const p of series[s]) {
+      const v = p[key];
+      // 標本不足の日は点を打たず線も途切れさせる（内挿すると無い情報を描いてしまう）
+      if (!isFinite(v) || v === null) { pen = false; continue; }
+      d += `${pen ? 'L' : 'M'}${x(idx[p.date]).toFixed(1)} ${y(v).toFixed(1)} `;
+      pen = true;
+    }
+    if (d) svg += `<path d="${d}" fill="none" stroke="${col}" stroke-width="1.6"/>`;
+    for (const p of series[s]) {
+      const v = p[key];
+      if (!isFinite(v) || v === null) continue;
+      svg += `<circle cx="${x(idx[p.date]).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.6" fill="${col}">`;
+      svg += `<title>${p.date.substring(4, 6)}/${p.date.substring(6, 8)} ${esc(s)} ${v.toFixed(dg)}</title></circle>`;
+    }
+  }
+  const step = Math.max(1, Math.ceil(dates.length / 8));
+  dates.forEach((d, i) => {
+    if (i % step !== 0 && i !== dates.length - 1) return;
+    svg += `<text class="cxl" x="${x(i).toFixed(1)}" y="${H - 9}">${d.substring(4, 6)}/${d.substring(6, 8)}</text>`;
+  });
+  svg += `</svg>`;
+  return html + svg + `</div>`;
+}
+
+function renderTrendRange(period, years) {
+  const list = document.getElementById('race-list');
+  const statsEl = document.getElementById('stats');
+
+  const venueAll = [];
+  for (const y of years) for (const r of (yearCache[y] || [])) if (r[R.VENUE] === trendVenue) venueAll.push(r);
+  const inRange = venueAll.filter(r => r[R.DATE] >= period.lo && r[R.DATE] <= period.hi);
+  if (inRange.length === 0) {
+    statsEl.textContent = '';
+    list.innerHTML = '<div class="no-results">この期間・会場のレース結果がありません</div>';
+    return;
+  }
+
+  const dates = [...new Set(inRange.map(r => r[R.DATE]))].sort();
+  const series = {};
+  for (const d of dates) {
+    const m = trendMetrics(inRange.filter(r => r[R.DATE] === d));
+    for (const [surface, v] of Object.entries(m)) {
+      (series[surface] = series[surface] || []).push({ date: d, ...v });
+    }
+  }
+  // 標本不足の判定は単日モードと同じ基準にそろえる
+  for (const s of Object.keys(series)) {
+    for (const p of series[s]) {
+      if (p.in3posN < 9) p.in3pos = null;
+      if (p.in3gateN < 9) p.in3gate = null;
+    }
+  }
+  const ref = trendMetrics(venueAll);
+
+  const fmt = d => `${d.substring(0, 4)}/${d.substring(4, 6)}/${d.substring(6, 8)}`;
+  statsEl.textContent = `${trendVenue} ${fmt(period.lo)}〜${fmt(period.hi)} ${dates.length}開催日 ${inRange.length}レース`;
+
+  let html = `<div class="trend-card">`;
+  html += `<h3>期間の推移（${esc(trendVenue)} ${fmt(period.lo)}〜${fmt(period.hi)}）</h3>`;
+  html += `<div class="trend-legend">`;
+  for (const s of Object.keys(series).sort((a, b) => (a === '芝' ? -1 : b === '芝' ? 1 : 0))) {
+    html += `<span style="color:${TREND_COLORS[s] || '#666'}">${esc(s)}（${series[s].length}日）</span>`;
+  }
+  html += `<span class="lg-dash" style="color:#888">破線 = 会場平均</span></div>`;
+
+  html += trendChart('馬場差（秒）', '下ほど高速。基準タイムからの偏差', dates, series, ref, 'baba', 2, { zero: true });
+  html += trendChart('内外バイアス（馬番×着順の相関）', '正=内枠有利 / 負=外枠有利。30頭未満の日は欠測', dates, series, ref, 'bias', 3, { zero: true });
+  html += trendChart('3着内馬の1角位置（相対）', '小さいほど前が残る。0=最前、1=最後方', dates, series, ref, 'in3pos', 2);
+  html += trendChart('3着内馬の馬番（相対）', '小さいほど内が来る。0=最内、1=大外', dates, series, ref, 'in3gate', 2);
+
+  html += `<div class="mochi-note">`;
+  html += `会場平均は読み込んだ年（${years.join('・')}）の同会場・同路面の全レース。`;
+  html += `標本が足りない日は点を打たず線を途切れさせている（内挿すると無い情報を描いてしまうため）。`;
+  html += `点にカーソルを合わせると日付と値が出る。`;
+  html += `</div></div>`;
+
+  list.innerHTML = html;
 }
 
 function renderTrend() {
@@ -1422,19 +1653,20 @@ function renderTrend() {
   html += `</div></div>`;
 
   html += `<div class="trend-card"><h3>レース別</h3><div class="table-wrap"><table class="trend-table">`;
-  html += `<tr><th>R</th><th class="lbl">クラス</th><th>条件</th><th>馬場</th><th>馬場差</th><th>3着内の馬番</th><th>3着内の1角</th></tr>`;
+  html += `<tr><th>R</th><th class="lbl">クラス</th><th>条件</th><th>馬場</th><th>馬場差</th><th>3着内の馬番</th><th>3着内の1角</th><th>3着内の人気</th></tr>`;
   for (const race of dayRaces) {
     const horses = (race[R.HORSES] || []).filter(h => /^\d+$/.test(String(h[H.RANK])));
     const in3 = horses.filter(h => parseInt(h[H.RANK]) <= 3).sort((a, b) => a[H.RANK] - b[H.RANK]);
     const surfDisp = race[R.SURFACE] === 'ダート' ? 'ダ' : '芝';
     const nums = in3.map(h => h[H.NUM]).join(',');
     const poss = in3.map(h => String(h[H.PASSING] || '').split('-')[0] || '-').join(',');
+    const pops = in3.map(h => h[H.POP] || '-').join(',');
     html += `<tr><td><span class="horse-link" onclick="showRaceDetail('${esc(race[R.ID])}')">${race[R.RACENUM]}</span></td>`;
     html += `<td class="lbl">${esc(classLabel(race[R.CLASS], race[R.GRADE]))}</td>`;
     html += `<td>${surfDisp}${esc(race[R.DIST])}</td>`;
     html += `<td>${esc(race[R.COND] || '')}</td>`;
     html += `<td style="font-size:10px">${esc(race[R.BABA_SPEED] || '')}</td>`;
-    html += `<td>${esc(nums)}</td><td>${esc(poss)}</td></tr>`;
+    html += `<td>${esc(nums)}</td><td>${esc(poss)}</td><td>${esc(pops)}</td></tr>`;
   }
   html += `</table></div><div class="mochi-note" style="margin-top:6px">頭数が違うので馬番・通過順位はそのままの値。傾向は上のサマリーで判断してください。</div></div>`;
 
@@ -1502,7 +1734,7 @@ async function showHorseDetail(name) {
     html += `<td style="text-align:left;font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis">${race[R.CLASS]}</td>`;
     html += `<td>${race[R.COND]}</td>`;
     const bSpd = race[R.BABA_SPEED] || '';
-    html += `<td style="font-size:10px;white-space:nowrap">${bSpd}</td>`;
+    html += `<td style="font-size:10px;white-space:nowrap">${trendLinkHtml(dd, race[R.VENUE], bSpd, false)}</td>`;
     html += `<td>${horse[H.WEIGHT]}</td>`;
     html += `<td>${horse[H.JOCKEY]}</td>`;
     html += `<td>${horse[H.RANK]}</td>`;
@@ -1570,6 +1802,9 @@ window.addEventListener('popstate', (e) => {
     showHorseDetail(e.state.horse);
   } else if (e.state && e.state.race) {
     showRaceDetail(e.state.race);
+  } else if (e.state && e.state.trend) {
+    const [d, v] = splitTrendParam(e.state.trend);
+    if (d) showTrend(d, v);
   } else {
     document.getElementById('horse-detail').classList.remove('active');
     document.getElementById('main-view').style.display = '';
@@ -1595,8 +1830,10 @@ document.getElementById('year-filter').addEventListener('change', onYearChange);
 document.getElementById('generation-filter').addEventListener('change', onGenerationChange);
 document.getElementById('date-filter').addEventListener('change', onDateChange);
 document.getElementById('shutuba-date-filter').addEventListener('change', onShutubaDateChange);
-document.getElementById('trend-date-filter').addEventListener('change', onTrendDateChange);
+document.getElementById('trend-date-filter').addEventListener('change', refreshTrend);
+document.getElementById('trend-date-to').addEventListener('change', refreshTrend);
 document.getElementById('trend-venue-filter').addEventListener('change', onTrendVenueChange);
+document.getElementById('trend-mode').addEventListener('change', onTrendModeChange);
 
 // meta.jsonから年リストを読み込み → URLパラメータ処理
 fetch('meta.json')
@@ -1639,10 +1876,14 @@ fetch('meta.json')
     const params = new URLSearchParams(location.search);
     const horseName = params.get('horse');
     const raceId = params.get('race');
+    const trendParam = params.get('trend');
     if (horseName) {
       showHorseDetail(horseName);
     } else if (raceId) {
       showRaceDetail(raceId);
+    } else if (trendParam) {
+      const [d, v] = splitTrendParam(trendParam);
+      if (d) showTrend(d, v);
     }
   })
   .catch(e => {
