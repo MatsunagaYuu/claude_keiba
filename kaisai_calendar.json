@@ -17228,5 +17228,35 @@
         "day": 6
       }
     ]
+  },
+  {
+    "date": "20260912",
+    "venues": [
+      {
+        "venue": "中山",
+        "kaisai": 4,
+        "day": 3
+      },
+      {
+        "venue": "阪神",
+        "kaisai": 4,
+        "day": 3
+      }
+    ]
+  },
+  {
+    "date": "20260913",
+    "venues": [
+      {
+        "venue": "中山",
+        "kaisai": 4,
+        "day": 4
+      },
+      {
+        "venue": "阪神",
+        "kaisai": 4,
+        "day": 4
+      }
+    ]
   }
 ]
