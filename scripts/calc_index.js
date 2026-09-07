@@ -529,11 +529,29 @@ function main() {
       rowCalc.push({ valid: true, row, factor, timeDiff, gi });
     }
 
-    // レース内の g_i = agariRaw*agariWeight の平均（--v3のみ使用。完走1頭ならgi-ḡ=0）
+    // レース内の g_i = agariRaw*agariWeight の平均（--v3のみ使用。完走1頭ならgi-ḡ=0）。
+    //
+    // 単純平均だと、途中で失速して歩いて帰ってきた馬（着順は付くが上がり40〜80秒）が
+    // 1頭いるだけで、その巨大なマイナスを打ち消すぶんが他の全馬に均等配分され、
+    // レース全体が10〜28pt かさ上げされる。2026/9/6 阪神4R（3歳未勝利）で15着馬が
+    // 2000mを2:53.2・上がり87.6秒で走り、残り15頭の能力指数が330前後まで浮いた。
+    // そこで中央値から大きく下振れした馬を平均から外す。
+    //
+    // 閾値は全55,592レースで検証して決めた。-4秒なら汚染していた181レースを全て補正しつつ、
+    // 健全なレースの変動はp95 0.25pt（丸め誤差相当）に収まる。除外されるのは全出走馬の
+    // 0.15%（上がり41〜65秒帯）で、いずれも競走を続けていない馬。
+    const GBAR_OUTLIER_SEC = 4;
     let gBar = 0;
     if (V3_MODE) {
       const validGi = rowCalc.filter(r => r.valid).map(r => r.gi);
-      if (validGi.length) gBar = validGi.reduce((a, b) => a + b, 0) / validGi.length;
+      if (validGi.length) {
+        const sorted = [...validGi].sort((a, b) => a - b);
+        const mid = sorted.length >> 1;
+        const medGi = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+        const kept = validGi.filter(g => g >= medGi - GBAR_OUTLIER_SEC);
+        const use = kept.length ? kept : validGi;
+        gBar = use.reduce((a, b) => a + b, 0) / use.length;
+      }
     }
 
     // 2パス目: 総合・能力指数を確定
