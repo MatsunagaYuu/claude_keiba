@@ -16,8 +16,13 @@ function fetchHTML(raceId) {
 }
 
 function normalizeClass(raw) {
+  // 全角英数を半角へ。netkeibaが2026/9/5開催分から「３歳以上 ５００万下」のように
+  // 全角で返すようになり、下流の classifyRace（半角で判定）が全て取りこぼした。
+  // 未勝利・条件戦はクラス不明で無言スキップ、OP・重賞は年齢が既定値の「3歳以上」に
+  // 落ちて誤ったアンカーで指数が出るという二段構えの壊れ方をする
+  let s = raw.replace(/[Ａ-Ｚａ-ｚ０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
   // 条件表記を除去: (混)(特指)(定量) / [指](馬齢) / 牝 / 牡 など
-  let s = raw.replace(/[\s　]*(?:[\(（\[【][^\)\]）】]*[\)\]）】]|牝|牡)+/g, "").trim();
+  s = s.replace(/[\s　]*(?:[\(（\[【][^\)\]）】]*[\)\]）】]|牝|牡)+/g, "").trim();
   s = s.replace(/オープン/, "OP").replace(/クラス/, "").trim();
   return s;
 }
