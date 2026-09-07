@@ -14,6 +14,7 @@
 const fs = require("fs");
 const path = require("path");
 const { parseCSV } = require("./csv_util");
+const { classifyRace } = require("./race_class");
 
 const RACE_RESULT_DIR = path.join(__dirname, "..", "race_result");
 const BASE_TIMES_FILE = path.join(__dirname, "..", "base_times.json");
@@ -57,25 +58,6 @@ const LEVEL_OFFSET = { 芝: -0.686, ダート: -0.278 };
 const CLIP = 8;          // 正規化偏差の外れ値クリップ（秒）
 const MAX_ITER = 100;
 const TOL = 0.002;
-
-function classifyRace(className) {
-  if (!className) return null;
-  if (className.includes("障害")) return null;
-  let age;
-  if (className.includes("2歳")) age = "2歳";
-  else if (className.includes("4歳以上")) age = "4歳以上";
-  else if (className.includes("3歳以上")) age = "3歳以上";
-  else if (className.includes("3歳")) age = "3歳";
-  else age = "3歳以上";
-  if (className.includes("新馬")) return `${age}新馬`;
-  if (className.includes("未勝利")) return `${age}未勝利`;
-  if (className.includes("1勝") || className.includes("500万下")) return `${age}1勝`;
-  if (className.includes("2勝") || className.includes("1000万下")) return `${age}2勝`;
-  if (className.includes("3勝") || className.includes("1600万下")) return `${age}3勝`;
-  if (className.includes("オープン") || className.includes("OP")) return `${age}OP`;
-  if (/G[1-3I]|GI|GII|GIII|リステッド|L$/.test(className)) return `${age}OP`;
-  return null;
-}
 
 function getBaseTimes(baseMap, surface, venue, dist, ageClass) {
   const key = `${surface}_${venue}_${dist}_${ageClass}`;

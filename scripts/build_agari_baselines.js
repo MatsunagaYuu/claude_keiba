@@ -9,6 +9,7 @@
 const fs = require("fs");
 const path = require("path");
 const { parseCSV } = require("./csv_util");
+const { classifyRace } = require("./race_class");
 
 const RACE_RESULT_DIR = path.join(__dirname, "..", "race_result");
 const EXT_BABA_FILE = path.join(__dirname, "..", "external_baba_diff.json");
@@ -33,28 +34,6 @@ const DIRT_DEFAULT_DIST = 1800;
 // 馬場差の前半/上がり配分 -- build_base_times.js と同一
 const BABA_EARLY_RATIO = 0.6;
 const BABA_LAST3F_RATIO = 0.4;
-
-// クラス名 → 年齢クラス別カテゴリマッピング（build_base_times.js と同一）
-function classifyRace(className) {
-  if (!className) return null;
-  if (className.includes("障害")) return null;
-
-  let age;
-  if (className.includes("2歳")) age = "2歳";
-  else if (className.includes("4歳以上")) age = "4歳以上";
-  else if (className.includes("3歳以上")) age = "3歳以上";
-  else if (className.includes("3歳")) age = "3歳";
-  else age = "3歳以上";
-
-  if (className.includes("新馬")) return `${age}新馬`;
-  if (className.includes("未勝利")) return `${age}未勝利`;
-  if (className.includes("1勝") || className.includes("500万下")) return `${age}1勝`;
-  if (className.includes("2勝") || className.includes("1000万下")) return `${age}2勝`;
-  if (className.includes("3勝") || className.includes("1600万下")) return `${age}3勝`;
-  if (className.includes("オープン") || className.includes("OP")) return `${age}OP`;
-  if (/G[1-3I]|GI|GII|GIII|リステッド|L$/.test(className)) return `${age}OP`;
-  return null;
-}
 
 function timeToSeconds(timeStr) {
   if (!timeStr) return null;

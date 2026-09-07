@@ -17,6 +17,7 @@
 const fs = require("fs");
 const path = require("path");
 const { parseCSVLine } = require("./csv_util");
+const { classifyRace } = require("./race_class");
 
 const ROOT = path.join(__dirname, "..");
 const indirIdx = process.argv.indexOf("--indir");
@@ -51,26 +52,6 @@ const CLASS_ANCHOR_DIRT = {
 function getClassAnchor(surface, ageClass) {
   const tbl = surface === "ダート" ? CLASS_ANCHOR_DIRT : CLASS_ANCHOR_TURF;
   return tbl[ageClass] || 280;
-}
-
-// calc_index.js と同一ロジック
-function classifyRace(className) {
-  if (!className) return null;
-  if (className.includes("障害")) return null;
-  let age;
-  if (className.includes("2歳")) age = "2歳";
-  else if (className.includes("4歳以上")) age = "4歳以上";
-  else if (className.includes("3歳以上")) age = "3歳以上";
-  else if (className.includes("3歳")) age = "3歳";
-  else age = "3歳以上";
-  if (className.includes("新馬")) return `${age}新馬`;
-  if (className.includes("未勝利")) return `${age}未勝利`;
-  if (className.includes("1勝") || className.includes("500万下")) return `${age}1勝`;
-  if (className.includes("2勝") || className.includes("1000万下")) return `${age}2勝`;
-  if (className.includes("3勝") || className.includes("1600万下")) return `${age}3勝`;
-  if (className.includes("オープン") || className.includes("OP")) return `${age}OP`;
-  if (/G[1-3I]|GI|GII|GIII|リステッド|L$/.test(className)) return `${age}OP`;
-  return null;
 }
 
 function timeToSeconds(timeStr) {

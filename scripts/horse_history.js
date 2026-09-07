@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { parseCSV } = require("./csv_util");
+const { classifyRace } = require("./race_class");
 
 const INDEX_DIR = path.join(__dirname, "..", "race_index");
 const CALENDAR_FILE = path.join(__dirname, "..", "kaisai_calendar.json");
@@ -54,26 +55,6 @@ function main() {
       if (e.芝馬場差 !== null) extBabaMap[`芝_${e.日付}_${e.競馬場}`] = e.芝馬場差;
       if (e.ダート馬場差 !== null) extBabaMap[`ダート_${e.日付}_${e.競馬場}`] = e.ダート馬場差;
     }
-  }
-
-  // クラス分類（calc_index.jsと同じ）
-  function classifyRace(className) {
-    if (!className) return null;
-    if (className.includes("障害")) return null;
-    let age;
-    if (className.includes("2歳")) age = "2歳";
-    else if (className.includes("4歳以上")) age = "4歳以上";
-    else if (className.includes("3歳以上")) age = "3歳以上";
-    else if (className.includes("3歳")) age = "3歳";
-    else age = "3歳以上";
-    if (className.includes("新馬")) return `${age}新馬`;
-    if (className.includes("未勝利")) return `${age}未勝利`;
-    if (className.includes("1勝") || className.includes("500万下")) return `${age}1勝`;
-    if (className.includes("2勝") || className.includes("1000万下")) return `${age}2勝`;
-    if (className.includes("3勝") || className.includes("1600万下")) return `${age}3勝`;
-    if (className.includes("オープン") || className.includes("OP")) return `${age}OP`;
-    if (/G[1-3I]|GI|GII|GIII|リステッド|L$/.test(className)) return `${age}OP`;
-    return null;
   }
 
   function getBaseTimes(surface, venue, dist, ageClass) {
