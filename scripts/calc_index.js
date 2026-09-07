@@ -314,6 +314,10 @@ function main() {
   let skipped = 0;
   let noBaba = 0;
   let btFallbackLogged = new Set();
+  // 障害競走は指数対象外なので黙って落として良いが、それ以外でクラスを読めないのは
+  // 入力フォーマットの変化を疑うべき異常。件数だけ数えて素通りすると気づけない
+  // （2026/9/5 に netkeiba が全角表記へ変わった際、51レースが無言で欠落した）
+  const unclassified = [];
 
   for (const { file, dir } of fileEntries) {
     const content = fs.readFileSync(path.join(dir, file), "utf-8");
@@ -331,7 +335,13 @@ function main() {
     if (surface !== "芝" && surface !== "ダート") { skipped++; continue; }
 
     const ageClass = classifyRace(className);
-    if (!ageClass) { skipped++; continue; }
+    if (!ageClass) {
+      skipped++;
+      if (!String(className || "").includes("障害")) {
+        unclassified.push({ file, className: className || "(空)" });
+      }
+      continue;
+    }
 
     // 基準タイム取得（年齢クラス別、フォールバックあり）
     const btResult = getBaseTimes(baseMap, surface, venue, dist, ageClass);
@@ -593,6 +603,19 @@ function main() {
   }
 
   console.log(`Processed: ${processed}, Skipped: ${skipped}, No baba data: ${noBaba}`);
+
+  // クラスを読めなかったレースは目立つように出す。障害競走は上で除外済みなので、
+  // ここに出るものは入力フォーマットの変化を疑うこと
+  if (unclassified.length > 0) {
+    const byClass = {};
+    for (const u of unclassified) (byClass[u.className] = byClass[u.className] || []).push(u.file);
+    console.warn(`\n!!! 警告: クラスを判定できず指数を作れなかったレースが ${unclassified.length} 件あります`);
+    console.warn(`    障害競走ではないので、netkeibaの表記変更を疑ってください`);
+    for (const [cls, files] of Object.entries(byClass).sort((a, b) => b[1].length - a[1].length)) {
+      console.warn(`    ${String(files.length).padStart(4)}件  クラス=${JSON.stringify(cls)}  例: ${files.slice(0, 3).join(" ")}`);
+    }
+    console.warn("");
+  }
   if (raceId && processed > 0) {
     const outFile = path.join(OUTPUT_DIR, `index_${raceId}.csv`);
     console.log(`Output: ${outFile}`);

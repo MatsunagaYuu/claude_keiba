@@ -70,11 +70,17 @@ jra_shutuba() {
 # 「過去日は凍結」の方針を崩すため。JRAのrace_idは開催回/日目ベースで日付を持たないので、
 # 生成済みビューアデータ(docs/data_YYYY.json)の日付フィールドで判定する。
 #
-# 判定は「日付」ではなく「その日にJRA開催が予定されていた会場が揃っているか」で行う。
-# data_YYYY.json はNARの結果も同じ日付フィールドで合流してくるので、日付の有無だけで見ると
-# 前日分を毎朝取り込む keiba-nar のせいでJRA結果が丸ごとスキップされる
-# （2026-08-15/16 で実際に発生。土曜にNAR開催があると必ず踏む）。
-# 会場単位なら3場のうち1場だけ取り込み損ねたケースも拾える。
+# 判定は「日付」ではなく「予定された各会場のレースが取り込めているか」を数で見る。
+#
+# 経緯1: data_YYYY.json はNARの結果も同じ日付フィールドで合流してくるので、日付の有無だけで
+#   見ると、前日分を毎朝取り込む keiba-nar のせいでJRA結果が丸ごとスキップされる
+#   （2026-08-15/16 で発生。土曜にNAR開催があると必ず踏む）→ 会場単位に変更した。
+# 経緯2: 会場が1つでも取り込めていれば「処理済み」と見なしていたため、
+#   36レース中8レースしか無い状態を検出できなかった（2026-09-05/06。netkeibaが
+#   クラスを全角表記に変えて指数算出が大半を取りこぼした）→ レース数まで見るようにした。
+#
+# 期待レース数は取得済みの race_result/ の本数から出す。指数化されないレース
+# （障害競走）は差し引く。まだ取得していない日は race_result が無いので当然「要処理」。
 # なお開催中止で結果が永遠に来ない日は毎回対象になるが、--last は直近の週末グループしか
 # 返さないので次の開催で自然に対象外になる。
 jra_result() {
@@ -82,21 +88,37 @@ jra_result() {
   last=$(node scripts/get_next_dates.js --last 2>/dev/null | tr '\n' ' ' | xargs || true)
   need=$(node -e "
     const fs=require('fs');
+    const VC={札幌:'01',函館:'02',福島:'03',新潟:'04',東京:'05',中山:'06',中京:'07',京都:'08',阪神:'09',小倉:'10'};
+    const p2=n=>String(n).padStart(2,'0');
     const dates='$last'.split(/\s+/).filter(Boolean);
     const cal=JSON.parse(fs.readFileSync('kaisai_calendar.json','utf-8'));
     const planned={};
-    for(const e of cal) planned[e.date]=e.venues.map(v=>v.venue);
+    for(const e of cal) planned[e.date]=e.venues;
     const need=[];
     for(const d of dates){
       const f='docs/data_'+d.slice(0,4)+'.json';
-      const have=new Set();
+      const have={};
       if(fs.existsSync(f)){
-        for(const r of JSON.parse(fs.readFileSync(f,'utf-8'))) if(r[11]===d) have.add(r[2]);
+        for(const r of JSON.parse(fs.readFileSync(f,'utf-8'))) if(r[11]===d) have[r[2]]=(have[r[2]]||0)+1;
       }
       const want=planned[d]||[];
-      // カレンダーに無い日は判断材料が無いので、従来どおりデータの有無で見る
-      const missing=want.length ? want.filter(v=>!have.has(v)) : (have.size ? [] : [d]);
-      if(missing.length) need.push(d);
+      if(!want.length){ if(!Object.keys(have).length) need.push(d); continue; }
+      let short=false;
+      for(const v of want){
+        const code=VC[v.venue];
+        if(!code){ if(!have[v.venue]) short=true; continue; }
+        // 取得済みの結果CSVのうち、指数対象（障害を除く）の本数を期待値とする
+        let expect=0;
+        for(let r=1;r<=12;r++){
+          const rf='race_result/result_'+d.slice(0,4)+code+p2(v.kaisai)+p2(v.day)+p2(r)+'.csv';
+          if(!fs.existsSync(rf)) continue;
+          const head=fs.readFileSync(rf,'utf-8').split('\n').slice(0,2).join('\n');
+          if(!head.includes('障害')) expect++;
+        }
+        if(expect===0){ short=true; continue; }      // 未取得
+        if((have[v.venue]||0) < expect) short=true;  // 取り込み漏れ
+      }
+      if(short) need.push(d);
     }
     console.log(need.join(' '));
   " 2>/dev/null || echo "")
