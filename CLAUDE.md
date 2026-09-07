@@ -19,6 +19,8 @@ JRAの競馬レースデータをスクレイピングし、独自の総合指�
 │   ├── build_venue_calibration.js # 会場×路面×距離帯補正の推定 → venue_calibration.json
 │   ├── verify_venue_calibration.js # 補正の検証（±120日窓・分割標本）
 │   ├── horse_history.js      # 馬別過去走確認CLI
+│   ├── race_class.js         # レースクラスの16区分判定（全スクリプト共通・全角も受ける）
+│   ├── csv_util.js           # CSV読み書き共通
 │   ├── scraper.js            # レース結果スクレイパー（puppeteer）
 │   ├── scrape_calendar.js    # 開催カレンダー取得（netkeibaスクレイピング版・本採用）
 │   ├── build_calendar_from_db.js # 開催カレンダー生成（DB版、DB廃止済みで非稼働・切り戻し用に温存）
@@ -191,6 +193,13 @@ deploy.sh → GitHub Pages
 
 - スクリプトはプロジェクトルートから `node scripts/xxx.js` で実行
 - シェルスクリプト（batch_*.sh, deploy.sh）は `cd "$(dirname "$0")"` で自動的にプロジェクトルートに移動
+- **クラス判定は scripts/race_class.js に一本化**（かつては8スクリプトに複製されていた）。
+  netkeibaは2026/9/5開催分からクラスを全角表記（「３歳以上 ５００万下」）で返すようになり、
+  半角判定していた全スクリプトが取りこぼした。scraper.js の書き込み時と race_class.js の
+  読み取り時の両方で正規化している。クラスを判定できないレース（障害を除く）が出ると
+  calc_index.js が警告を出すので、ログに出たら表記変更を疑うこと
+- **手動で指数を作り直すときはバッチと同じフラグを使う**: `calc_index.js --naisei --v3`
+  （batch_result.sh:76）。--v3 を落とすと算出方式の違う指数が混ざる
 - ビューアは単一HTMLファイル（docs/index.html）。外部ライブラリなし
 - race_result/ と race_index/ はgit管理外（.gitignore）
 - external_baba_diff.json は ittai.net からスクレイピング（切り戻し用に温存、更新停止）
