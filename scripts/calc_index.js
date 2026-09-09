@@ -6,6 +6,10 @@ const { classifyRace } = require("./race_class");
 const NAISEI_MODE = process.argv.includes("--naisei");
 const NO_CALIB = process.argv.includes("--no-calib");
 const V3_MODE = process.argv.includes("--v3");
+// 診断用: --v3 のうち上がり項のレース内ゼロサム化だけを外す（κ・γ補正は残す）。
+// ゼロサム化がA問題（上がり残差~ペース）の解消にどれだけ寄与しているか、
+// 逆にレース単位の実信号をどれだけ消しているかを比較するために使う。本番では使わない
+const NO_ZEROSUM = process.argv.includes("--no-zerosum");
 
 const BASE_TIMES_FILE = path.join(__dirname, "..", "base_times.json");
 const BABA_DIFF_FILE = path.join(__dirname, "..", "baba_diff.json");
@@ -542,7 +546,7 @@ function main() {
     // 0.15%（上がり41〜65秒帯）で、いずれも競走を続けていない馬。
     const GBAR_OUTLIER_SEC = 4;
     let gBar = 0;
-    if (V3_MODE) {
+    if (V3_MODE && !NO_ZEROSUM) {
       const validGi = rowCalc.filter(r => r.valid).map(r => r.gi);
       if (validGi.length) {
         const sorted = [...validGi].sort((a, b) => a - b);
