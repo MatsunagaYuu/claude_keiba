@@ -15,6 +15,9 @@ const NO_ZEROSUM = process.argv.includes("--no-zerosum");
 const SLOPE2_MODE = process.argv.includes("--slope2");
 // 診断用: 上がり層のレース内ゼロサム化を、比率ベースのペース補正に置き換える
 const ZEROSUM_RATIO = process.argv.includes("--zerosum-ratio");
+// 診断用: γのペース指標を「上がり/走破の比率」ベースに差し替える。
+// build_race_calibration.js --pace-ratio で推定した係数と対で使うこと
+const PACE_RATIO = process.argv.includes("--pace-ratio");
 const AGARI_PACE_FILE = path.join(__dirname, "..", "agari_pace_calibration.json");
 
 const BASE_TIMES_FILE = path.join(__dirname, "..", "base_times.json");
@@ -22,7 +25,12 @@ const BABA_DIFF_FILE = path.join(__dirname, "..", "baba_diff.json");
 const EXT_BABA_FILE = path.join(__dirname, "..", "external_baba_diff.json");
 const CALENDAR_FILE = path.join(__dirname, "..", "kaisai_calendar.json");
 const CALIB_FILE = path.join(__dirname, "..", "venue_calibration.json");
-const RACE_EFFECT_CALIB_FILE = path.join(__dirname, "..", "race_effect_calibration.json");
+// 補正係数の再推定時は「補正を入れていない素の指数」から推定する必要があるため、
+// 係数ファイルを差し替えられるようにしておく（venue_calibration の --no-calib と同じ思想）
+const rcIdx = process.argv.indexOf("--race-calib");
+const RACE_EFFECT_CALIB_FILE = rcIdx >= 0
+  ? path.resolve(process.argv[rcIdx + 1])
+  : path.join(__dirname, "..", "race_effect_calibration.json");
 const AGARI_BASELINES_FILE = path.join(__dirname, "..", "agari_baselines.json");
 const RACE_RESULT_DIR = path.join(__dirname, "..", "race_result");
 // --naisei は馬場差ソースの切替のみ（出力先は常に race_index、切り戻しはフラグを外すだけ）
@@ -460,7 +468,7 @@ function main() {
 
     // 先頭馬の前半タイム（脚溜め補正の基準）と、レース平均の前半タイム（--slope2 用）
     let leaderEarly = Infinity;
-    let earlySum = 0, earlyCnt = 0;
+    let earlySum = 0, earlyCnt = 0, ratioSum = 0;
     for (const row of rows) {
       if (!/^\d+$/.test(row["着順"])) continue;
       const totalSec = timeToSeconds(row["タイム"]);
@@ -468,17 +476,22 @@ function main() {
       if (totalSec && last3f && !isNaN(last3f)) {
         const early = totalSec - last3f;
         if (early < leaderEarly) leaderEarly = early;
-        earlySum += early; earlyCnt++;
+        earlySum += early; ratioSum += last3f / totalSec; earlyCnt++;
       }
     }
     const raceEarlyMean = earlyCnt ? earlySum / earlyCnt : null;
+    const raceRatioMean = earlyCnt ? ratioSum / earlyCnt : null;
 
     // --v3: レース効果補正（paceDev/raceEff）に使う値。verify_index_health.js と同一定義
     let raceEffV3 = 0;
     let paceDevV3 = 0;
     if (V3_MODE) {
       const scaleV3 = surface === "ダート" ? (DIRT_SCALE_A * parseInt(dist) + DIRT_SCALE_B) : parseInt(dist) / 2000;
-      if (leaderEarly !== Infinity) {
+      if (PACE_RATIO && raceRatioMean !== null) {
+        // build_race_calibration.js --pace-ratio と同一定義であること。
+        // 基準は base_times.json 側（agari_baselines ではない）で揃える
+        paceDevV3 = -((raceRatioMean - bt.基準上がり秒 / bt.基準走破秒) * bt.基準走破秒) / scaleV3;
+      } else if (leaderEarly !== Infinity) {
         paceDevV3 = (leaderEarly - (agariEarly + babaDiff * 0.6)) / scaleV3;
       }
       if (raceDate) {

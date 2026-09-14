@@ -23,6 +23,8 @@ function argVal(flag, def) {
   return i >= 0 && process.argv[i + 1] !== undefined ? process.argv[i + 1] : def;
 }
 const SINCE = parseInt(argVal("--since", "2019"));
+// ペース指標を「上がり/走破の比率」ベースに差し替える。calc_index の --pace-ratio と対で使うこと
+const PACE_RATIO = process.argv.includes("--pace-ratio");
 const JRA_INDIR = path.join(ROOT, argVal("--indir", "race_index"));
 const NAR_INDIR = path.join(ROOT, argVal("--nar-indir", "nar_race_index"));
 const OUT_FILE = path.isAbsolute(argVal("--out", "race_effect_calibration.json"))
@@ -153,6 +155,7 @@ function buildJra() {
 
     let leaderEarly = Infinity;
     const rows = [];
+    let ratioSum = 0, ratioCnt = 0;
     for (let i = 1; i < lines.length; i++) {
       const c = parseCSVLine(lines[i]);
       if (!/^\d+$/.test(c[col["着順"]])) continue;
@@ -161,11 +164,25 @@ function buildJra() {
       if (!sec || !a3 || isNaN(a3)) continue;
       const early = sec - a3;
       if (early < leaderEarly) leaderEarly = early;
+      ratioSum += a3 / sec; ratioCnt++;
       rows.push(c);
     }
     if (!rows.length || leaderEarly === Infinity) continue;
 
-    const paceDev = (leaderEarly - (bt.基準前半秒 + babaDiff * 0.6)) / scale;
+    // ペース指標。既定は先頭馬の前半タイム基準だが、これは
+    //   (a) 馬場差の推定値に依存する（しかも係数0.6は実測0.54とズレている）
+    //   (b) 先頭馬1頭だけで測るので標本1頭ぶんのノイズを持つ
+    // という弱点がある。--pace-ratio では「上がり/走破の比率」を使う。
+    // 比率は馬場差にほぼ反応せず（実測 R² 芝0.041 / ダ0.007）、全馬から算出するので安定する。
+    // 現行と桁を揃えるため、比率のズレは基準走破秒を掛けて秒に戻してから scale で割る。
+    let paceDev;
+    if (PACE_RATIO) {
+      const mr = ratioSum / ratioCnt;
+      const baseRatio = bt.基準上がり秒 / bt.基準走破秒;
+      paceDev = -((mr - baseRatio) * bt.基準走破秒) / scale;
+    } else {
+      paceDev = (leaderEarly - (bt.基準前半秒 + babaDiff * 0.6)) / scale;
+    }
 
     for (const c of rows) {
       const total = parseFloat(c[col["総合指数"]]);
