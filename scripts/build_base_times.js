@@ -140,7 +140,7 @@ function main() {
       const babaCorrLast3f = babaCorrTotal * BABA_LAST3F_RATIO;
 
       const key = `${surface}_${venue}_${dist}_${category}`;
-      if (!groups[key]) groups[key] = { surface, early: [], last3f: [] };
+      if (!groups[key]) groups[key] = { surface, early: [], last3f: [], race: [] };
 
       let raceHasData = false;
       for (const row of rows) {
@@ -153,6 +153,7 @@ function main() {
         // 標準馬場に補正（馬場差を引く: 速い馬場なら馬場差<0 → 補正後は遅くなる）
         groups[key].early.push(earlySec - babaCorrEarly);
         groups[key].last3f.push(last3f - babaCorrLast3f);
+        groups[key].race.push(raceId);
         raceHasData = true;
         processedHorses++;
       }
@@ -162,7 +163,7 @@ function main() {
       if (condition !== "良") continue;
 
       const key = `${surface}_${venue}_${dist}_${category}`;
-      if (!groups[key]) groups[key] = { surface, early: [], last3f: [] };
+      if (!groups[key]) groups[key] = { surface, early: [], last3f: [], race: [] };
 
       let raceHasData = false;
       for (const row of rows) {
@@ -174,6 +175,7 @@ function main() {
         const earlySec = totalSec - last3f;
         groups[key].early.push(earlySec);
         groups[key].last3f.push(last3f);
+        groups[key].race.push(raceId);
         raceHasData = true;
         processedHorses++;
       }
@@ -190,17 +192,63 @@ function main() {
   for (const [key, data] of Object.entries(groups)) {
     const [surface, venue, dist] = key.split("_");
     const rkey = `${surface}_${venue}_${dist}`;
-    if (!regressionData[rkey]) regressionData[rkey] = { early: [], last3f: [] };
+    if (!regressionData[rkey]) regressionData[rkey] = { early: [], last3f: [], race: [] };
     for (let i = 0; i < data.early.length; i++) {
       regressionData[rkey].early.push(data.early[i]);
       regressionData[rkey].last3f.push(data.last3f[i]);
+      regressionData[rkey].race.push(data.race[i]);
     }
   }
 
+  // 「上がり ~ 前半」の関係は2つの別物が混ざっている:
+  //   レース間（ペース）= その日そのレースが速く流れたか
+  //   レース内（位置取り）= その馬が隊列のどこにいたか
+  // 両者は傾きの符号も大きさも違うので、全馬をプールして1本の回帰にすると打ち消し合う。
+  // 実際プール版は R² 中央値 0.011 とほぼ説明力を失っていた（1058セル中937セルが0.05未満）。
+  // 分解して別々に推定し、新フィールドとして持たせる（回帰スロープは互換のため残す）。
+  function regress(xs, ys) {
+    const n = xs.length;
+    if (n < 30) return { slope: 0, r2: 0, n };
+    const mx = xs.reduce((a, b) => a + b, 0) / n, my = ys.reduce((a, b) => a + b, 0) / n;
+    let sxy = 0, sxx = 0, syy = 0;
+    for (let i = 0; i < n; i++) {
+      const dx = xs[i] - mx, dy = ys[i] - my;
+      sxy += dx * dy; sxx += dx * dx; syy += dy * dy;
+    }
+    if (sxx === 0 || syy === 0) return { slope: 0, r2: 0, n };
+    return { slope: sxy / sxx, r2: (sxy * sxy) / (sxx * syy), n };
+  }
+
+  function decompose(rd) {
+    // レースごとに平均を取り、レース内は平均からの偏差、レース間はレース平均そのもの
+    const byRace = {};
+    for (let i = 0; i < rd.early.length; i++) {
+      (byRace[rd.race[i]] = byRace[rd.race[i]] || []).push(i);
+    }
+    const wX = [], wY = [], bX = [], bY = [];
+    for (const idxs of Object.values(byRace)) {
+      if (idxs.length < 3) continue;   // レース平均が不安定な少頭数は除く
+      const mE = idxs.reduce((a, i) => a + rd.early[i], 0) / idxs.length;
+      const mA = idxs.reduce((a, i) => a + rd.last3f[i], 0) / idxs.length;
+      bX.push(mE); bY.push(mA);
+      for (const i of idxs) { wX.push(rd.early[i] - mE); wY.push(rd.last3f[i] - mA); }
+    }
+    return { within: regress(wX, wY), between: regress(bX, bY) };
+  }
+
   const slopes = {};
+  const slopesWithin = {};
+  const slopesBetween = {};
+  const r2Within = {};
+  const r2Between = {};
   const stddevs = {};
   const regressionR2 = {};
   for (const [rkey, rd] of Object.entries(regressionData)) {
+    const dec = decompose(rd);
+    slopesWithin[rkey] = dec.within.slope;
+    slopesBetween[rkey] = dec.between.slope;
+    r2Within[rkey] = dec.within.r2;
+    r2Between[rkey] = dec.between.r2;
     const n = rd.early.length;
     const meanX = rd.early.reduce((a, b) => a + b, 0) / n;
     const meanY = rd.last3f.reduce((a, b) => a + b, 0) / n;
@@ -223,7 +271,9 @@ function main() {
     }, 0);
     const r2 = ssTot > 0 ? 1 - ssRes / ssTot : 0;
     regressionR2[rkey] = r2;
-    console.log(`Regression ${rkey}: slope=${slopes[rkey].toFixed(4)}, R²=${r2.toFixed(4)}, stddev=${stddevs[rkey].toFixed(3)} (n=${n})`);
+    console.log(`Regression ${rkey}: slope=${slopes[rkey].toFixed(4)}, R²=${r2.toFixed(4)}, stddev=${stddevs[rkey].toFixed(3)} (n=${n})`
+      + ` | 内 slope=${dec.within.slope.toFixed(4)} R²=${dec.within.r2.toFixed(3)}`
+      + ` / 間 slope=${dec.between.slope.toFixed(4)} R²=${dec.between.r2.toFixed(3)} (races=${dec.between.n})`);
   }
 
   // 基準タイム算出（良馬場・上下10%カット平均）
@@ -265,6 +315,10 @@ function main() {
       基準走破: secondsToTime(avgTotal),
       回帰スロープ: parseFloat(slopes[rkey].toFixed(4)),
       回帰R2: parseFloat((regressionR2[rkey] || 0).toFixed(4)),
+      回帰スロープ内: parseFloat((slopesWithin[rkey] || 0).toFixed(4)),
+      回帰R2内: parseFloat((r2Within[rkey] || 0).toFixed(4)),
+      回帰スロープ間: parseFloat((slopesBetween[rkey] || 0).toFixed(4)),
+      回帰R2間: parseFloat((r2Between[rkey] || 0).toFixed(4)),
       上がり標準偏差: parseFloat((stddevs[rkey] || 0).toFixed(3)),
       サンプル数: data.early.length,
     };

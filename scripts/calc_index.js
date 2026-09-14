@@ -10,6 +10,12 @@ const V3_MODE = process.argv.includes("--v3");
 // ゼロサム化がA問題（上がり残差~ペース）の解消にどれだけ寄与しているか、
 // 逆にレース単位の実信号をどれだけ消しているかを比較するために使う。本番では使わない
 const NO_ZEROSUM = process.argv.includes("--no-zerosum");
+// 診断用: 期待上がりの傾きを「レース間(ペース)」「レース内(位置取り)」に分けて使う。
+// base_times.json の 回帰スロープ内 / 回帰スロープ間 を参照する
+const SLOPE2_MODE = process.argv.includes("--slope2");
+// 診断用: 上がり層のレース内ゼロサム化を、比率ベースのペース補正に置き換える
+const ZEROSUM_RATIO = process.argv.includes("--zerosum-ratio");
+const AGARI_PACE_FILE = path.join(__dirname, "..", "agari_pace_calibration.json");
 
 const BASE_TIMES_FILE = path.join(__dirname, "..", "base_times.json");
 const BABA_DIFF_FILE = path.join(__dirname, "..", "baba_diff.json");
@@ -140,6 +146,10 @@ function getAgariBaseTimes(agariMap, surface, venue, dist, ageClass) {
   }
   return null; // agari_baselinesに該当セルなし → base_times.jsonへフォールバック（呼び出し側の責務）
 }
+
+const agariPaceCalib = fs.existsSync(AGARI_PACE_FILE)
+  ? JSON.parse(fs.readFileSync(AGARI_PACE_FILE, "utf-8"))
+  : null;
 
 function main() {
   const baseTimes = JSON.parse(fs.readFileSync(BASE_TIMES_FILE, "utf-8"));
@@ -433,6 +443,10 @@ function main() {
       }
     }
     const slope = agariSlope;
+    // --slope2 用の分解済み傾き。agari_baselines.json 側には未実装なので base_times.json から取る。
+    // 旧い base_times.json（新フィールド無し）ならプール版にフォールバックして現行と同じ挙動になる
+    const slopeWithin = bt.回帰スロープ内 !== undefined ? bt.回帰スロープ内 : agariSlope;
+    const slopeBetween = bt.回帰スロープ間 !== undefined ? bt.回帰スロープ間 : agariSlope;
     const courseStddev = agariStddev;
     const courseFactor = agariGlobalAvgStddev / courseStddev;
 
@@ -444,8 +458,9 @@ function main() {
       calibOffset = pd.map[`${surface}_${venue}_${bandOfDist(parseInt(dist))}`] || 0;
     }
 
-    // 先頭馬の前半タイム（脚溜め補正の基準）
+    // 先頭馬の前半タイム（脚溜め補正の基準）と、レース平均の前半タイム（--slope2 用）
     let leaderEarly = Infinity;
+    let earlySum = 0, earlyCnt = 0;
     for (const row of rows) {
       if (!/^\d+$/.test(row["着順"])) continue;
       const totalSec = timeToSeconds(row["タイム"]);
@@ -453,8 +468,10 @@ function main() {
       if (totalSec && last3f && !isNaN(last3f)) {
         const early = totalSec - last3f;
         if (early < leaderEarly) leaderEarly = early;
+        earlySum += early; earlyCnt++;
       }
     }
+    const raceEarlyMean = earlyCnt ? earlySum / earlyCnt : null;
 
     // --v3: レース効果補正（paceDev/raceEff）に使う値。verify_index_health.js と同一定義
     let raceEffV3 = 0;
@@ -516,8 +533,18 @@ function main() {
       // 上がり指数
       const anchorEarlyBase = agariEarly + babaDiff * 0.6;
       const anchorLast3fBase = agariLast3f + babaDiff * 0.4;
-      const earlyDiff = earlySec - anchorEarlyBase;
-      const expectedLast3f = anchorLast3fBase + slope * earlyDiff;
+      // 期待上がり。--slope2 では「レース間(ペース)」と「レース内(位置取り)」を別の傾きで扱う。
+      // 現行は両者を1本の傾きで済ませているが、符号も大きさも違うため回帰が打ち消し合い、
+      // プール版の説明力は R² 中央値0.011 まで落ちていた（傾きも -0.080 vs -0.237 と3倍違う）
+      let expectedLast3f;
+      if (SLOPE2_MODE && raceEarlyMean !== null) {
+        const paceComp = raceEarlyMean - anchorEarlyBase;   // レース全体が速かった/遅かった
+        const posComp = earlySec - raceEarlyMean;           // その馬が隊列のどこにいたか
+        expectedLast3f = anchorLast3fBase + slopeBetween * paceComp + slopeWithin * posComp;
+      } else {
+        const earlyDiff = earlySec - anchorEarlyBase;
+        expectedLast3f = anchorLast3fBase + slope * earlyDiff;
+      }
 
       const positionGap = earlySec - leaderEarly;
       const draftPenalty = positionGap * DRAFT_FACTOR;
@@ -530,7 +557,7 @@ function main() {
       const agariWeight = getAgariWeight(surface, dist, ageClass);
       const gi = agariRaw * agariWeight;
 
-      rowCalc.push({ valid: true, row, factor, timeDiff, gi });
+      rowCalc.push({ valid: true, row, factor, timeDiff, gi, ratio: last3f / totalSec });
     }
 
     // レース内の g_i = agariRaw*agariWeight の平均（--v3のみ使用。完走1頭ならgi-ḡ=0）。
@@ -546,7 +573,19 @@ function main() {
     // 0.15%（上がり41〜65秒帯）で、いずれも競走を続けていない馬。
     const GBAR_OUTLIER_SEC = 4;
     let gBar = 0;
-    if (V3_MODE && !NO_ZEROSUM) {
+    if (V3_MODE && ZEROSUM_RATIO && agariPaceCalib && agariPaceCalib[surface]) {
+      // 比率ベースのペース層。レース平均を引く代わりに「上がり/走破の比率が基準から
+      // どれだけズレたか」で説明できる分だけを引く。比率は馬場差にほぼ反応しない
+      // （実測 R² 芝0.041 / ダ0.007）ため、馬場の速い遅いに汚染されないペース指標になる。
+      // レース内平均と違い全データで推定するので、少頭数でも外れ値でも揺れない。
+      const c = agariPaceCalib[surface];
+      const valid = rowCalc.filter(r => r.valid && r.ratio !== null);
+      if (valid.length) {
+        const mr = valid.reduce((a, r) => a + r.ratio, 0) / valid.length;
+        const baseRatio = bt.基準上がり秒 / bt.基準走破秒;
+        gBar = c.intercept + c.slope * (mr - baseRatio);
+      }
+    } else if (V3_MODE && !NO_ZEROSUM) {
       const validGi = rowCalc.filter(r => r.valid).map(r => r.gi);
       if (validGi.length) {
         const sorted = [...validGi].sort((a, b) => a - b);
