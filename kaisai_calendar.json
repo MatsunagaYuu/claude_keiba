@@ -17293,12 +17293,17 @@
     "date": "20260921",
     "venues": [
       {
-        "venue": "中山",
+        "venue": "阪神",
         "kaisai": 4,
         "day": 7
-      },
+      }
+    ]
+  },
+  {
+    "date": "20260922",
+    "venues": [
       {
-        "venue": "阪神",
+        "venue": "中山",
         "kaisai": 4,
         "day": 7
       }
