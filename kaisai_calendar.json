@@ -17310,10 +17310,30 @@
     ]
   },
   {
+    "date": "20260926",
+    "venues": [
+      {
+        "venue": "中山",
+        "kaisai": 4,
+        "day": 8
+      },
+      {
+        "venue": "阪神",
+        "kaisai": 4,
+        "day": 8
+      }
+    ]
+  },
+  {
     "date": "20260927",
     "venues": [
       {
         "venue": "中山",
+        "kaisai": 4,
+        "day": 9
+      },
+      {
+        "venue": "阪神",
         "kaisai": 4,
         "day": 9
       }
