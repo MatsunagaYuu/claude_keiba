@@ -366,6 +366,10 @@ function esc(s) {
     c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// onclick="fn(...)" に埋める文字列引数。JSON.stringify で JS 文字列リテラルにしてから属性用にエスケープする。
+// esc() だけでは不十分（ブラウザは &#39; を ' に戻してから JS として解釈するため）
+function jsArg(s) { return esc(JSON.stringify(String(s == null ? '' : s))); }
+
 // レース名が条件をそのまま書いただけか判定する。
 // 「3歳以上1勝クラス」「2歳 未勝利」「C2三組」などはクラス表示と重複するので出さない。
 // 「札幌記念」「大垣特別」のような固有名だけを表示したい。
@@ -618,7 +622,7 @@ async function onYearChange() {
     buildSubFilters();
     applyFilters();
   } catch (e) {
-    list.innerHTML = '<div class="loading">読み込みエラー: ' + e.message + '</div>';
+    list.innerHTML = '<div class="loading">読み込みエラー: ' + esc(e.message) + '</div>';
   }
 }
 
@@ -746,21 +750,21 @@ function render(horseName, idxMin) {
 
   for (const race of visible) {
     const id = race[R.ID];
-    html += `<div class="race-card" id="race-${id}">`;
-    html += `<div class="race-header" onclick="toggle('${id}')">`;
+    html += `<div class="race-card" id="race-${esc(id)}">`;
+    html += `<div class="race-header" onclick="toggle(${jsArg(id)})">`;
     const raceName = race[R.RACE_NAME] || '';
     const raceGrade = race[R.GRADE] || '';
-    html += `<div><div class="race-title">${race[R.VENUE]} ${race[R.SURFACE]}${race[R.DIST]}m ${race[R.CLASS]}${raceName ? ' ' + raceName : ''}${gradeBadge(raceGrade, race[R.CLASS])}</div>`;
+    html += `<div><div class="race-title">${esc(race[R.VENUE])} ${esc(race[R.SURFACE])}${esc(race[R.DIST])}m ${esc(race[R.CLASS])}${raceName ? ' ' + esc(raceName) : ''}${gradeBadge(raceGrade, race[R.CLASS])}</div>`;
     const d = race[R.DATE];
     const dateDisp = d ? `${d.substring(0,4)}/${d.substring(4,6)}/${d.substring(6,8)}` : `${race[R.YEAR]}年`;
-    const rNum = race[R.RACENUM] ? `${race[R.RACENUM]}R` : '';
+    const rNum = race[R.RACENUM] ? `${esc(race[R.RACENUM])}R` : '';
     const bSpeed = race[R.BABA_SPEED] || '';
     // 日付＝このレースの結果、馬場差＝その日の傾向（出馬表の過去5走カードと同じ対応）
     const dateLink = d
-      ? `<span class="horse-link" title="このレースの結果" onclick="event.stopPropagation();showRaceDetail('${esc(id)}')">${dateDisp}</span>`
-      : dateDisp;
+      ? `<span class="horse-link" title="このレースの結果" onclick="event.stopPropagation();showRaceDetail(${jsArg(id)})">${esc(dateDisp)}</span>`
+      : esc(dateDisp);
     const babaLink = trendLinkHtml(d, race[R.VENUE], bSpeed, false);
-    html += `<div class="race-meta">${dateLink} ${rNum} ${race[R.SURFACE]} ${race[R.COND]}${bSpeed ? '/' + babaLink : ''} ${race[R.WEATHER]}</div></div>`;
+    html += `<div class="race-meta">${dateLink} ${rNum} ${esc(race[R.SURFACE])} ${esc(race[R.COND])}${bSpeed ? '/' + babaLink : ''} ${esc(race[R.WEATHER])}</div></div>`;
     html += `<span class="race-arrow">&#9654;</span></div>`;
 
     html += `<div class="race-body"><div class="table-wrap"><table class="horse-table">`;
@@ -770,20 +774,19 @@ function render(horseName, idxMin) {
       const isHighlight = (horseName && h[H.NAME].includes(horseName)) ||
                           (idxMin && parseInt(h[H.ABILITY]) >= idxMin);
       const hlClass = isHighlight ? ' highlight' : '';
-      const escapedName = h[H.NAME].replace(/'/g, "\\'");
       html += `<tr class="${hlClass}">`;
-      html += `<td>${h[H.RANK]}</td>`;
-      html += `<td>${h[H.GATE]}</td>`;
-      html += `<td>${h[H.NUM]}</td>`;
-      html += `<td class="name"><span class="horse-link" onclick="showHorseDetail('${escapedName}')">${h[H.NAME]}</span></td>`;
-      html += `<td>${h[H.WEIGHT]}</td>`;
-      html += `<td>${h[H.JOCKEY]}</td>`;
-      html += `<td>${h[H.TIME]}</td>`;
-      html += `<td>${h[H.LAST3F]}</td>`;
-      html += `<td>${h[H.PASSING]}</td>`;
-      html += `<td class="idx ${idxClass(h[H.TOTAL])}">${h[H.TOTAL]}</td>`;
-      html += `<td class="idx">${h[H.LAST3F_IDX]}</td>`;
-      html += `<td class="idx ${idxClass(h[H.ABILITY])}">${h[H.ABILITY]}</td>`;
+      html += `<td>${esc(h[H.RANK])}</td>`;
+      html += `<td>${esc(h[H.GATE])}</td>`;
+      html += `<td>${esc(h[H.NUM])}</td>`;
+      html += `<td class="name"><span class="horse-link" onclick="showHorseDetail(${jsArg(h[H.NAME])})">${esc(h[H.NAME])}</span></td>`;
+      html += `<td>${esc(h[H.WEIGHT])}</td>`;
+      html += `<td>${esc(h[H.JOCKEY])}</td>`;
+      html += `<td>${esc(h[H.TIME])}</td>`;
+      html += `<td>${esc(h[H.LAST3F])}</td>`;
+      html += `<td>${esc(h[H.PASSING])}</td>`;
+      html += `<td class="idx ${idxClass(h[H.TOTAL])}">${esc(h[H.TOTAL])}</td>`;
+      html += `<td class="idx">${esc(h[H.LAST3F_IDX])}</td>`;
+      html += `<td class="idx ${idxClass(h[H.ABILITY])}">${esc(h[H.ABILITY])}</td>`;
       html += `</tr>`;
     }
 
@@ -875,7 +878,7 @@ async function onShutubaDateChange() {
     selectedShutubaVenue = null;
     renderShutuba();
   } catch (e) {
-    listEl.innerHTML = '<div class="loading">読み込みエラー: ' + e.message + '</div>';
+    listEl.innerHTML = '<div class="loading">読み込みエラー: ' + esc(e.message) + '</div>';
   }
 }
 
@@ -912,7 +915,7 @@ function renderShutuba() {
   html += `<div class="venue-tabs">`;
   for (const v of venues) {
     const sel = v === selectedShutubaVenue ? ' selected' : '';
-    html += `<button class="venue-tab${sel}" onclick="selectShutubaVenue('${v}')">${v}</button>`;
+    html += `<button class="venue-tab${sel}" onclick="selectShutubaVenue(${jsArg(v)})">${esc(v)}</button>`;
   }
   html += `</div>`;
 
@@ -922,9 +925,9 @@ function renderShutuba() {
   for (const race of races) {
     const id = race[SR.ID];
     const sel = selectedShutubaRace === id ? ' selected' : '';
-    html += `<button class="race-btn${sel}" onclick="selectShutubaRace('${id}')">`;
-    html += `<span class="rnum">${race[SR.RACENUM]}R</span>`;
-    html += `<span class="rclass">${race[SR.SURFACE]}${race[SR.DIST]}m</span>`;
+    html += `<button class="race-btn${sel}" onclick="selectShutubaRace(${jsArg(id)})">`;
+    html += `<span class="rnum">${esc(race[SR.RACENUM])}R</span>`;
+    html += `<span class="rclass">${esc(race[SR.SURFACE])}${esc(race[SR.DIST])}m</span>`;
     html += `<span class="rclass">${esc(classLabel(race[SR.CLASS], ""))}</span>`;
     // レース名は特別戦・重賞のみ付くので、ある場合だけ行を足す
     const rName = raceNameLabel(race[SR.RACE_NAME], race[SR.CLASS]);
@@ -941,7 +944,7 @@ function renderShutuba() {
       html += `<div class="race-card" style="margin-top:0">`;
       html += `<div style="padding:10px 12px;font-weight:600;font-size:13px;border-bottom:1px solid #eee">`;
       const rName = raceNameLabel(race[SR.RACE_NAME], race[SR.CLASS]);
-      html += `${esc(race[SR.VENUE])} ${race[SR.RACENUM]}R ${esc(race[SR.SURFACE])}${race[SR.DIST]}m ${esc(classLabel(race[SR.CLASS], ""))}`;
+      html += `${esc(race[SR.VENUE])} ${esc(race[SR.RACENUM])}R ${esc(race[SR.SURFACE])}${esc(race[SR.DIST])}m ${esc(classLabel(race[SR.CLASS], ""))}`;
       html += `${rName ? " " + esc(rName) : ""}</div>`;
 
       // ソート・フィルタコントロール
@@ -953,8 +956,8 @@ function renderShutuba() {
       html += sortOpt('avgability', '過去5走 平均能力↓');
       html += sortOpt('mochi', '持ちタイム↑');
       html += `</select></label>`;
-      html += `<label>最高能力 ≥ <input type="number" step="1" value="${shutubaFilterMaxAbility}" oninput="onShutubaFilterInput('max', this.value)"></label>`;
-      html += `<label>平均能力 ≥ <input type="number" step="1" value="${shutubaFilterAvgAbility}" oninput="onShutubaFilterInput('avg', this.value)"></label>`;
+      html += `<label>最高能力 ≥ <input type="number" step="1" value="${esc(shutubaFilterMaxAbility)}" oninput="onShutubaFilterInput('max', this.value)"></label>`;
+      html += `<label>平均能力 ≥ <input type="number" step="1" value="${esc(shutubaFilterAvgAbility)}" oninput="onShutubaFilterInput('avg', this.value)"></label>`;
       html += `<span class="filter-mode-toggle">`;
       html += `<button data-mode="AND" class="${shutubaFilterMode==='AND'?'active':''}" onclick="setShutubaFilterMode('AND')">AND</button>`;
       html += `<button data-mode="OR" class="${shutubaFilterMode==='OR'?'active':''}" onclick="setShutubaFilterMode('OR')">OR</button>`;
@@ -995,15 +998,14 @@ function renderShutuba() {
 
       for (const item of indexed) {
         const h = item.h;
-        const escapedName = h[SH.NAME].replace(/'/g, "\\'");
         const matchCls = shutubaFilterMatch(item.st) ? ' class="filter-match"' : '';
         html += `<tr data-hidx="${item.i}"${matchCls}>`;
-        html += `<td>${h[SH.GATE]}</td>`;
-        html += `<td>${h[SH.NUM]}</td>`;
-        html += `<td class="name"><span class="horse-link" onclick="showHorseDetail('${escapedName}')">${h[SH.NAME]}</span></td>`;
-        html += `<td>${h[SH.AGE]}</td>`;
-        html += `<td>${h[SH.WEIGHT]}</td>`;
-        html += `<td>${h[SH.JOCKEY]}</td>`;
+        html += `<td>${esc(h[SH.GATE])}</td>`;
+        html += `<td>${esc(h[SH.NUM])}</td>`;
+        html += `<td class="name"><span class="horse-link" onclick="showHorseDetail(${jsArg(h[SH.NAME])})">${esc(h[SH.NAME])}</span></td>`;
+        html += `<td>${esc(h[SH.AGE])}</td>`;
+        html += `<td>${esc(h[SH.WEIGHT])}</td>`;
+        html += `<td>${esc(h[SH.JOCKEY])}</td>`;
         html += `<td style="text-align:left">${buildPastRaces(h[SH.PAST])}</td>`;
         html += `</tr>`;
       }
@@ -1156,10 +1158,9 @@ function buildMochiBody(race) {
   html += `<tr><th>順</th><th>枠</th><th>番</th><th>馬名</th><th>持ちタイム</th><th>日付</th><th>場</th><th>距離</th><th>馬場</th><th>馬場差</th><th>斤量</th></tr>`;
   let order = 0;
   for (const { h, best } of rows) {
-    const escapedName = h[SH.NAME].replace(/'/g, "\\'");
     if (!best) {
       html += `<tr class="mochi-none"><td>-</td><td>${esc(h[SH.GATE])}</td><td>${esc(h[SH.NUM])}</td>`;
-      html += `<td class="name"><span class="horse-link" onclick="showHorseDetail('${esc(escapedName)}')">${esc(h[SH.NAME])}</span></td>`;
+      html += `<td class="name"><span class="horse-link" onclick="showHorseDetail(${jsArg(h[SH.NAME])})">${esc(h[SH.NAME])}</span></td>`;
       html += `<td colspan="7">該当走なし</td></tr>`;
       continue;
     }
@@ -1168,11 +1169,11 @@ function buildMochiBody(race) {
     const dateStr = d ? `${d.substring(2,4)}/${d.substring(4,6)}/${d.substring(6,8)}` : '';
     const raceId = p[SP.RACE_ID] || '';
     const dateCell = raceId && dateStr
-      ? `<a class="pr-link" href="?race=${esc(raceId)}" target="_blank">${dateStr}</a>`
-      : dateStr;
+      ? `<a class="pr-link" href="?race=${encodeURIComponent(raceId)}" target="_blank">${esc(dateStr)}</a>`
+      : esc(dateStr);
     const surfDisp = p[SP.SURFACE] === 'ダート' ? 'ダ' : (p[SP.SURFACE] || '').charAt(0);
     html += `<tr><td>${++order}</td><td>${esc(h[SH.GATE])}</td><td>${esc(h[SH.NUM])}</td>`;
-    html += `<td class="name"><span class="horse-link" onclick="showHorseDetail('${esc(escapedName)}')">${esc(h[SH.NAME])}</span></td>`;
+    html += `<td class="name"><span class="horse-link" onclick="showHorseDetail(${jsArg(h[SH.NAME])})">${esc(h[SH.NAME])}</span></td>`;
     html += `<td class="mochi-time">${esc(p[SP.TIME])}</td>`;
     html += `<td>${dateCell}</td>`;
     html += `<td>${esc((p[SP.VENUE] || '').substring(0, 2))}</td>`;
@@ -1248,14 +1249,14 @@ function buildPastRaces(pastRaces) {
 
     html += `<div class="past-race"${isRef ? ' style="opacity:0.45"' : ''}>`;
     html += `<div class="pr-idx ${cls}">${isNaN(ability) ? '-' : ability}${isRef ? '*' : ''}</div>`;
-    html += `<div class="${isWin ? 'pr-rank-win' : 'pr-rank'}">${rank}着</div>`;
+    html += `<div class="${isWin ? 'pr-rank-win' : 'pr-rank'}">${esc(rank)}着</div>`;
     if (refHorse) {
       html += `<div class="pr-ref-horse">${esc(refHorse)}(${esc(margin)})</div>`;
     }
     if (raceId && dateStr) {
-      html += `<div class="pr-info"><a class="pr-link" href="?race=${raceId}" target="_blank" onclick="event.stopPropagation()">${dateStr} ${esc(venue)}</a></div>`;
+      html += `<div class="pr-info"><a class="pr-link" href="?race=${encodeURIComponent(raceId)}" target="_blank" onclick="event.stopPropagation()">${esc(dateStr)} ${esc(venue)}</a></div>`;
     } else {
-      html += `<div class="pr-info">${dateStr} ${esc(venue)}</div>`;
+      html += `<div class="pr-info">${esc(dateStr)} ${esc(venue)}</div>`;
     }
     const pCls = classLabel(p[SP.CLASS], p[SP.GRADE]);
     const pName = isOpenOrAbove(pCls) ? raceNameLabel(p[SP.RACE_NAME], p[SP.CLASS]) : '';
@@ -1265,13 +1266,13 @@ function buildPastRaces(pastRaces) {
     const pCond = p[SP.COND] || '';
     // 日付＝レース結果（上の行）、馬場差＝その日の傾向。隣の日付リンクに合わせて別タブで開く
     const babaLink = trendLinkHtml(p[SP.DATE], p[SP.VENUE], baba, true);
-    html += `<div class="pr-info">${surfDisp}${p[SP.DIST]}${pCond ? ' ' + pCond : ''}${baba ? ' ' + babaLink : ''}</div>`;
-    html += `<div class="pr-time">${time}${last3f ? '(' + last3f + ')' : ''}</div>`;
+    html += `<div class="pr-info">${esc(surfDisp)}${esc(p[SP.DIST])}${pCond ? ' ' + esc(pCond) : ''}${baba ? ' ' + babaLink : ''}</div>`;
+    html += `<div class="pr-time">${esc(time)}${last3f ? '(' + esc(last3f) + ')' : ''}</div>`;
     if (jockey || weight || gate || pop) {
       const jocParts = [jockey, weight ? weight : '', gate ? gate + '番' : '', pop ? pop + '人' : ''].filter(Boolean);
       html += `<div class="pr-info">${esc(jocParts.join(" "))}</div>`;
     }
-    if (passing) html += `<div class="pr-info">${passing}</div>`;
+    if (passing) html += `<div class="pr-info">${esc(passing)}</div>`;
     html += `</div>`;
   }
   html += '</div>'; // .past-races
@@ -1427,7 +1428,7 @@ async function refreshTrend() {
     if (trendMode === 'range') renderTrendRange(period, years);
     else renderTrend();
   } catch (e) {
-    list.innerHTML = '<div class="loading">読み込みエラー: ' + e.message + '</div>';
+    list.innerHTML = '<div class="loading">読み込みエラー: ' + esc(e.message) + '</div>';
   }
 }
 
@@ -1460,7 +1461,7 @@ function trendLinkHtml(date, venue, label, newTab) {
       + ` title="この日の傾向" onclick="event.stopPropagation()">${esc(label)}</a>`;
   }
   return `<span class="horse-link" title="この日の傾向"`
-    + ` onclick="event.stopPropagation();showTrend('${esc(date)}','${esc(venue)}')">${esc(label)}</span>`;
+    + ` onclick="event.stopPropagation();showTrend(${jsArg(date)},${jsArg(venue)})">${esc(label)}</span>`;
 }
 
 const TREND_COLORS = { '芝': '#2e7d32', 'ダート': '#a1662f' };
@@ -1661,7 +1662,7 @@ function renderTrend() {
     const nums = in3.map(h => h[H.NUM]).join(',');
     const poss = in3.map(h => String(h[H.PASSING] || '').split('-')[0] || '-').join(',');
     const pops = in3.map(h => h[H.POP] || '-').join(',');
-    html += `<tr><td><span class="horse-link" onclick="showRaceDetail('${esc(race[R.ID])}')">${race[R.RACENUM]}</span></td>`;
+    html += `<tr><td><span class="horse-link" onclick="showRaceDetail(${jsArg(race[R.ID])})">${esc(race[R.RACENUM])}</span></td>`;
     html += `<td class="lbl">${esc(classLabel(race[R.CLASS], race[R.GRADE]))}</td>`;
     html += `<td>${surfDisp}${esc(race[R.DIST])}</td>`;
     html += `<td>${esc(race[R.COND] || '')}</td>`;
@@ -1728,24 +1729,24 @@ async function showHorseDetail(name) {
     const dateStr = dd ? `${dd.substring(0,4)}/${dd.substring(4,6)}/${dd.substring(6,8)}` : `${race[R.YEAR]}`;
     const raceId = race[R.ID];
     const surfShort = race[R.SURFACE] === 'ダート' ? 'ダ' : '芝';
-    html += `<td><span class="horse-link" onclick="showRaceDetail('${raceId}')">${dateStr}</span></td>`;
-    html += `<td>${race[R.VENUE]}</td>`;
-    html += `<td>${surfShort}${race[R.DIST]}m</td>`;
-    html += `<td style="text-align:left;font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis">${race[R.CLASS]}</td>`;
-    html += `<td>${race[R.COND]}</td>`;
+    html += `<td><span class="horse-link" onclick="showRaceDetail(${jsArg(raceId)})">${esc(dateStr)}</span></td>`;
+    html += `<td>${esc(race[R.VENUE])}</td>`;
+    html += `<td>${surfShort}${esc(race[R.DIST])}m</td>`;
+    html += `<td style="text-align:left;font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis">${esc(race[R.CLASS])}</td>`;
+    html += `<td>${esc(race[R.COND])}</td>`;
     const bSpd = race[R.BABA_SPEED] || '';
     html += `<td style="font-size:10px;white-space:nowrap">${trendLinkHtml(dd, race[R.VENUE], bSpd, false)}</td>`;
-    html += `<td>${horse[H.WEIGHT]}</td>`;
-    html += `<td>${horse[H.NUM]}</td>`;
-    html += `<td>${horse[H.POP] || '-'}</td>`;
-    html += `<td>${horse[H.JOCKEY]}</td>`;
-    html += `<td>${horse[H.RANK]}</td>`;
-    html += `<td>${horse[H.TIME]}</td>`;
-    html += `<td>${horse[H.LAST3F]}</td>`;
-    html += `<td>${horse[H.PASSING]}</td>`;
-    html += `<td class="idx ${idxClass(horse[H.TOTAL])}">${horse[H.TOTAL]}</td>`;
-    html += `<td class="idx">${horse[H.LAST3F_IDX]}</td>`;
-    html += `<td class="idx ${idxClass(horse[H.ABILITY])}">${horse[H.ABILITY]}</td>`;
+    html += `<td>${esc(horse[H.WEIGHT])}</td>`;
+    html += `<td>${esc(horse[H.NUM])}</td>`;
+    html += `<td>${esc(horse[H.POP] || '-')}</td>`;
+    html += `<td>${esc(horse[H.JOCKEY])}</td>`;
+    html += `<td>${esc(horse[H.RANK])}</td>`;
+    html += `<td>${esc(horse[H.TIME])}</td>`;
+    html += `<td>${esc(horse[H.LAST3F])}</td>`;
+    html += `<td>${esc(horse[H.PASSING])}</td>`;
+    html += `<td class="idx ${idxClass(horse[H.TOTAL])}">${esc(horse[H.TOTAL])}</td>`;
+    html += `<td class="idx">${esc(horse[H.LAST3F_IDX])}</td>`;
+    html += `<td class="idx ${idxClass(horse[H.ABILITY])}">${esc(horse[H.ABILITY])}</td>`;
     html += '</tr>';
   }
 
